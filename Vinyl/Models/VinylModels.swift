@@ -1,0 +1,60 @@
+import Foundation
+
+struct VinylParameters {
+    var wowDepth: Float = 35
+    var flutter: Float = 25
+    var warpWow: Float = 10
+    var speedDrift: Float = 15
+    var trackingWeight: Float = 50
+    var crackle: Float = 40
+    var hiss: Float = 30
+    var rumble: Float = 35
+    var pressedNoise: Float = 20
+    var hfRolloff: Float = 30
+    var saturation: Float = 40
+    var riaaVariance: Float = 20
+    var stereoWidth: Float = 75
+    var innerGrooveDistortion: Float = 25
+    var azimuthError: Float = 15
+    var roomResonance: Float = 20
+    var wear: Float = 20
+    var masterIntensity: Float = 30
+}
+
+struct VinylPreset: Identifiable {
+    let id: String
+    let name: String
+    let description: String
+    let params: VinylParameters
+}
+
+extension VinylPreset {
+    static let all: [VinylPreset] = [custom, audiophile, lowEarFatigue, needleDrop, rock, jazz, electronic, era78rpm, lateNight]
+    static let custom = VinylPreset(id:"custom", name:"custom", description:"default settings", params:VinylParameters())
+    static let audiophile = VinylPreset(id:"audiophile", name:"audiophile", description:"pristine high-end deck", params:{ var p = VinylParameters(); p.wear=5; p.masterIntensity=20; p.wowDepth=10; p.flutter=5; p.warpWow=0; p.speedDrift=5; p.trackingWeight=60; p.crackle=5; p.hiss=10; p.rumble=10; p.pressedNoise=5; p.hfRolloff=8; p.saturation=30; p.riaaVariance=10; p.stereoWidth=90; p.innerGrooveDistortion=5; p.azimuthError=5; p.roomResonance=15; return p }())
+    static let lowEarFatigue = VinylPreset(id:"fatigue", name:"low ear fatigue", description:"warm, smooth, long sessions", params:{ var p = VinylParameters(); p.wear=15; p.masterIntensity=25; p.wowDepth=20; p.flutter=5; p.warpWow=0; p.speedDrift=5; p.trackingWeight=50; p.crackle=8; p.hiss=35; p.rumble=20; p.pressedNoise=15; p.hfRolloff=45; p.saturation=65; p.riaaVariance=30; p.stereoWidth=70; p.innerGrooveDistortion=5; p.azimuthError=5; p.roomResonance=25; return p }())
+    static let needleDrop = VinylPreset(id:"needledrop", name:"needle drop", description:"stylus mechanics, physical feel", params:{ var p = VinylParameters(); p.wear=30; p.masterIntensity=60; p.wowDepth=65; p.flutter=70; p.warpWow=30; p.speedDrift=40; p.trackingWeight=35; p.crackle=40; p.hiss=25; p.rumble=30; p.pressedNoise=20; p.hfRolloff=25; p.saturation=30; p.riaaVariance=25; p.stereoWidth=75; p.innerGrooveDistortion=65; p.azimuthError=45; p.roomResonance=20; return p }())
+    static let rock = VinylPreset(id:"rock", name:"rock", description:"warm, present, minimal artifacts", params:{ var p = VinylParameters(); p.wear=20; p.masterIntensity=35; p.wowDepth=8; p.flutter=5; p.warpWow=0; p.speedDrift=5; p.trackingWeight=55; p.crackle=15; p.hiss=20; p.rumble=15; p.pressedNoise=10; p.hfRolloff=20; p.saturation=50; p.riaaVariance=20; p.stereoWidth=80; p.innerGrooveDistortion=10; p.azimuthError=5; p.roomResonance=20; return p }())
+    static let jazz = VinylPreset(id:"jazz", name:"jazz", description:"warm, intimate, lightly worn", params:{ var p = VinylParameters(); p.wear=25; p.masterIntensity=40; p.wowDepth=25; p.flutter=10; p.warpWow=5; p.speedDrift=10; p.trackingWeight=50; p.crackle=25; p.hiss=40; p.rumble=30; p.pressedNoise=20; p.hfRolloff=35; p.saturation=55; p.riaaVariance=25; p.stereoWidth=65; p.innerGrooveDistortion=15; p.azimuthError=10; p.roomResonance=35; return p }())
+    static let electronic = VinylPreset(id:"electronic", name:"electronic", description:"clean, wide, subtle warmth", params:{ var p = VinylParameters(); p.wear=10; p.masterIntensity=25; p.wowDepth=5; p.flutter=3; p.warpWow=0; p.speedDrift=3; p.trackingWeight=60; p.crackle=5; p.hiss=15; p.rumble=10; p.pressedNoise=8; p.hfRolloff=12; p.saturation=35; p.riaaVariance=15; p.stereoWidth=95; p.innerGrooveDistortion=3; p.azimuthError=3; p.roomResonance=10; return p }())
+    static let era78rpm = VinylPreset(id:"78rpm", name:"78 rpm era", description:"pre-war shellac sound", params:{ var p = VinylParameters(); p.wear=60; p.masterIntensity=70; p.wowDepth=35; p.flutter=45; p.warpWow=15; p.speedDrift=25; p.trackingWeight=50; p.crackle=60; p.hiss=80; p.rumble=50; p.pressedNoise=80; p.hfRolloff=85; p.saturation=80; p.riaaVariance=70; p.stereoWidth=20; p.innerGrooveDistortion=70; p.azimuthError=30; p.roomResonance=60; return p }())
+    static let lateNight = VinylPreset(id:"latenight", name:"late night", description:"dark, worn, 2am listening", params:{ var p = VinylParameters(); p.wear=55; p.masterIntensity=55; p.wowDepth=25; p.flutter=15; p.warpWow=40; p.speedDrift=30; p.trackingWeight=50; p.crackle=30; p.hiss=70; p.rumble=60; p.pressedNoise=40; p.hfRolloff=60; p.saturation=50; p.riaaVariance=20; p.stereoWidth=60; p.innerGrooveDistortion=20; p.azimuthError=20; p.roomResonance=55; return p }())
+}
+
+struct SampleTrack: Identifiable {
+    let id: String
+    let title: String
+    let artist: String
+    let genre: String
+    let filename: String
+    let defaultPresetID: String
+}
+
+extension SampleTrack {
+    static let library: [SampleTrack] = [
+        SampleTrack(id:"france", title:"One Night In France", artist:"HoliznaCC0", genre:"lo-fi / nostalgic", filename:"one_night_in_france", defaultPresetID:"electronic"),
+        SampleTrack(id:"easiness", title:"Easiness", artist:"Dee Yan-Key", genre:"jazz / swing", filename:"easiness", defaultPresetID:"jazz"),
+        SampleTrack(id:"neon", title:"A Neon Flesh", artist:"Kai Engel", genre:"ambient piano", filename:"a_neon_flesh", defaultPresetID:"fatigue"),
+        SampleTrack(id:"srv", title:"not SRV", artist:"unknown", genre:"blues / guitar", filename:"not_srv", defaultPresetID:"rock"),
+    ]
+}
