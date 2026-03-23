@@ -1,89 +1,180 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta http-equiv="Content-type" content="text/html; charset=utf-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'">
-    <title>Page not found &middot; GitHub Pages</title>
-    <style type="text/css" media="screen">
-      body {
-        background-color: #f1f1f1;
-        margin: 0;
-        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-      }
-
-      .container { margin: 50px auto 40px auto; width: 600px; text-align: center; }
-
-      a { color: #4183c4; text-decoration: none; }
-      a:hover { text-decoration: underline; }
-
-      h1 { width: 800px; position:relative; left: -100px; letter-spacing: -1px; line-height: 60px; font-size: 60px; font-weight: 100; margin: 0px 0 50px 0; text-shadow: 0 1px 0 #fff; }
-      p { color: rgba(0, 0, 0, 0.5); margin: 20px 0; line-height: 1.6; }
-
-      ul { list-style: none; margin: 25px 0; padding: 0; }
-      li { display: table-cell; font-weight: bold; width: 1%; }
-
-      .logo { display: inline-block; margin-top: 35px; }
-      .logo-img-2x { display: none; }
-      @media
-      only screen and (-webkit-min-device-pixel-ratio: 2),
-      only screen and (   min--moz-device-pixel-ratio: 2),
-      only screen and (     -o-min-device-pixel-ratio: 2/1),
-      only screen and (        min-device-pixel-ratio: 2),
-      only screen and (                min-resolution: 192dpi),
-      only screen and (                min-resolution: 2dppx) {
-        .logo-img-1x { display: none; }
-        .logo-img-2x { display: inline-block; }
-      }
-
-      #suggestions {
-        margin-top: 35px;
-        color: #ccc;
-      }
-      #suggestions a {
-        color: #666666;
-        font-weight: 200;
-        font-size: 14px;
-        margin: 0 10px;
-      }
-
-    </style>
-  </head>
-  <body>
-
-    <div class="container">
-
-      <h1>404</h1>
-      <p><strong>File not found</strong></p>
-
-      <p>
-        The site configured at this address does not
-        contain the requested file.
-      </p>
-
-      <p>
-        If this is your site, make sure that the filename case matches the URL
-        as well as any file permissions.<br>
-        For root URLs (like <code>http://example.com/</code>) you must provide an
-        <code>index.html</code> file.
-      </p>
-
-      <p>
-        <a href="https://help.github.com/pages/">Read the full documentation</a>
-        for more information about using <strong>GitHub Pages</strong>.
-      </p>
-
-      <div id="suggestions">
-        <a href="https://githubstatus.com">GitHub Status</a> &mdash;
-        <a href="https://twitter.com/githubstatus">@githubstatus</a>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vinyl — analog emulation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0e0e0e;--bg2:#161616;--bg3:#1e1e1e;--border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.14);--text:#e8e6e0;--text2:#9a9690;--text3:#5a5856;--accent:#c8b89a;--green:#5a9a78}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:"DM Mono",monospace;min-height:100vh}
+body{padding:2rem 1.5rem 4rem;max-width:920px;margin:0 auto}
+header{display:flex;align-items:baseline;gap:1rem;margin-bottom:2rem;border-bottom:0.5px solid var(--border);padding-bottom:1rem}
+.logo{font-family:"Playfair Display",serif;font-size:22px;font-weight:400;color:var(--text);letter-spacing:-0.02em}
+.logo-sub{font-size:11px;color:var(--text3);letter-spacing:0.08em}
+.layout{display:grid;grid-template-columns:240px 1fr;gap:2rem;align-items:start}
+.left{display:flex;flex-direction:column;align-items:center;gap:1rem}
+.drop-zone{width:240px;height:240px;border-radius:50%;border:1.5px dashed var(--border2);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden;flex-shrink:0}
+.drop-zone:hover{border-color:var(--accent);background:var(--bg2)}
+.drop-zone.has-file{border:none}
+.drop-icon{font-size:24px;opacity:0.25;margin-bottom:8px;color:var(--accent)}
+.drop-text{font-size:11px;color:var(--text3);text-align:center;line-height:1.8}
+#file-input{display:none}
+#record-canvas{border-radius:50%;display:block;position:absolute;top:0;left:0}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+button{cursor:pointer;border:0.5px solid var(--border2);background:transparent;color:var(--text);font-family:"DM Mono",monospace;font-size:11px;padding:7px 16px;border-radius:6px;transition:all 0.15s;white-space:nowrap}
+button:hover{background:var(--bg3)}
+button:disabled{opacity:0.25;cursor:default}
+button.primary{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:500}
+button.primary:hover{opacity:0.85}
+button.bypass-on{background:var(--bg3);border-color:var(--border2);color:var(--text3)}
+.bypass-indicator{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);padding:4px 10px;border-radius:6px;background:var(--bg2);border:0.5px solid var(--border)}
+.bypass-dot{width:6px;height:6px;border-radius:50%;background:var(--text3);transition:background 0.2s}
+.bypass-dot.on{background:var(--green)}
+.right{display:flex;flex-direction:column;gap:1rem;min-width:0}
+.track-info{border-bottom:0.5px solid var(--border);padding-bottom:0.75rem}
+.track-title{font-family:"Playfair Display",serif;font-size:20px;font-weight:400;color:var(--text);line-height:1.3}
+.track-sub{font-size:10px;color:var(--text3);margin-top:4px}
+.section-label{font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text3);margin-bottom:6px}
+.samples-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:5px;margin-bottom:2px}
+.sample-btn{padding:8px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg2);color:var(--text2);font-family:"DM Mono",monospace;font-size:10px;cursor:pointer;text-align:left;transition:all 0.15s;line-height:1.4;width:100%}
+.sample-btn:hover{border-color:var(--accent);color:var(--text)}
+.sample-btn.active{border-color:var(--accent);color:var(--accent);background:var(--bg3)}
+.sample-btn.loading{opacity:0.5}
+.sample-name{display:block;font-weight:500;font-size:11px;margin-bottom:1px}
+.sample-artist{display:block;font-size:9px;color:var(--text3)}
+.sample-genre{display:block;font-size:9px;color:var(--text3);font-style:italic}
+.presets-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:5px}
+.preset-btn{padding:8px 10px;border-radius:6px;border:0.5px solid var(--border);background:var(--bg2);color:var(--text2);font-family:"DM Mono",monospace;font-size:10px;cursor:pointer;text-align:left;transition:all 0.15s;line-height:1.4}
+.preset-btn:hover{border-color:var(--accent);color:var(--text)}
+.preset-btn.active{border-color:var(--accent);color:var(--accent);background:var(--bg3)}
+.preset-name{display:block;font-weight:500;font-size:11px;margin-bottom:2px}
+.preset-desc{display:block;font-size:9px;color:var(--text3);line-height:1.3}
+.master-block{display:flex;flex-direction:column;gap:6px}
+.master-row{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg2);border-radius:8px;border:0.5px solid var(--border)}
+.master-label{font-size:11px;font-weight:500;color:var(--text2);white-space:nowrap;width:120px;flex-shrink:0;line-height:1.4}
+.master-sub{font-size:10px;color:var(--text3);display:block;font-weight:400}
+.master-row input[type=range]{flex:1;accent-color:var(--accent)}
+.master-val{font-size:10px;color:var(--text3);width:60px;text-align:right;flex-shrink:0}
+.section{border:0.5px solid var(--border);border-radius:10px;overflow:hidden}
+.sec-header{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;user-select:none;background:var(--bg2);transition:background 0.15s}
+.sec-header:hover{background:var(--bg3)}
+.sec-title{font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--text2)}
+.sec-meta{display:flex;align-items:center;gap:8px}
+.sec-badge{font-size:10px;color:var(--text3)}
+.chevron{font-size:10px;color:var(--text3);transition:transform 0.2s;display:inline-block}
+.chevron.open{transform:rotate(180deg)}
+.sec-body{padding:10px 14px;display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+.sec-body.collapsed{display:none}
+.sl-row{display:flex;align-items:center;gap:8px;position:relative}
+.sl-label{font-size:11px;color:var(--text2);width:130px;flex-shrink:0;line-height:1.4}
+.sl-sub{font-size:10px;color:var(--text3);display:block}
+.sl-row input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
+.sl-val{font-size:10px;color:var(--text3);width:24px;text-align:right;flex-shrink:0}
+.info-btn{width:16px;height:16px;border-radius:50%;border:0.5px solid var(--border2);background:transparent;color:var(--text3);font-family:"DM Mono",monospace;font-size:9px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s}
+.info-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--bg3)}
+.info-tooltip{display:none;position:fixed;z-index:999;background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--text2);line-height:1.6;max-width:280px}
+.info-tooltip.visible{display:block}
+.bypassed .sl-row,.bypassed .master-row,.bypassed .presets-grid{opacity:0.25;pointer-events:none}
+#decode-status{font-size:10px;color:var(--text3);text-align:center;min-height:14px}
+input[type=range]{-webkit-appearance:none;appearance:none;height:3px;background:var(--border2);border-radius:2px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;border:none}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;border:none}
+@media(max-width:620px){.layout{grid-template-columns:1fr}.left{width:100%}.drop-zone{width:200px;height:200px}#record-canvas{width:200px!important;height:200px!important}body{padding:1.5rem 1rem 3rem}}
+</style>
+</head>
+<body>
+<header><span class="logo">Vinyl</span><span class="logo-sub">analog emulation</span></header>
+<div id="tooltip" class="info-tooltip"></div>
+<div class="layout">
+  <div class="left">
+    <div class="drop-zone" id="drop-zone">
+      <canvas id="record-canvas" width="240" height="240" style="display:none"></canvas>
+      <div id="drop-content">
+        <div class="drop-icon">&#9678;</div>
+        <div class="drop-text">drop audio here<br><span style="font-size:10px;opacity:0.6">mp3 &middot; wav &middot; m4a &middot; mp4</span></div>
       </div>
-
-      <a href="/" class="logo logo-img-1x">
-        <img width="32" height="32" title="" alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyRpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMy1jMDExIDY2LjE0NTY2MSwgMjAxMi8wMi8wNi0xNDo1NjoyNyAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNiAoTWFjaW50b3NoKSIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDpFMTZCRDY3REIzRjAxMUUyQUQzREIxQzRENUFFNUM5NiIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDpFMTZCRDY3RUIzRjAxMUUyQUQzREIxQzRENUFFNUM5NiI+IDx4bXBNTTpEZXJpdmVkRnJvbSBzdFJlZjppbnN0YW5jZUlEPSJ4bXAuaWlkOkUxNkJENjdCQjNGMDExRTJBRDNEQjFDNEQ1QUU1Qzk2IiBzdFJlZjpkb2N1bWVudElEPSJ4bXAuZGlkOkUxNkJENjdDQjNGMDExRTJBRDNEQjFDNEQ1QUU1Qzk2Ii8+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+SM9MCAAAA+5JREFUeNrEV11Ik1EY3s4+ddOp29Q5b0opCgKFsoKoi5Kg6CIhuwi6zLJLoYLopq4qsKKgi4i6CYIoU/q5iDAKs6syoS76IRWtyJ+p7cdt7sf1PGOD+e0c3dygAx/67ZzzPM95/877GYdHRg3ZjMXFxepQKNS6sLCwJxqNNuFpiMfjVs4ZjUa/pmmjeD6VlJS8NpvNT4QQ7mxwjSsJiEQim/1+/9lgMHgIr5ohuxG1WCw9Vqv1clFR0dCqBODElV6v90ogEDjGdYbVjXhpaendioqK07CIR7ZAqE49PT09BPL2PMgTByQGsYiZlQD4uMXtdr+JxWINhgINYhGT2MsKgMrm2dnZXgRXhaHAg5jEJodUAHxux4LudHJE9RdEdA+i3Juz7bGHe4mhE9FNrgwBCLirMFV9Okh5eflFh8PR5nK5nDabrR2BNJlKO0T35+Li4n4+/J+/JQCxhmu5h3uJoXNHPbmWZAHMshWB8l5/ipqammaAf0zPDDx1ONV3vurdidqwAQL+pEc8sLcAe1CCvQ3YHxIW8Pl85xSWNC1hADDIv0rIE/o4J0k3kww4xSlwIhcq3EFFOm7KN/hUGOQkt0CFa5WpNJlMvxBEz/IVQAxg/ZRZl9wiHA63yDYieM7DnLP5CiAGsC7I5sgtYKJGWe2A8seFqgFJrJjEPY1Cn3pJ8/9W1e5VWsFDTEmFrBcoDhZJEQkXuhICMyKpjhahqN21hRYATKfUOlDmkygrR4o4C0VOLGJKrOITKB4jijzdXygBKixyC5TDQdnk/Pz8qRw6oOWGlsTKGOQW6OH6FBWsyePxdOXLTgxiyebILZCjz+GLgMIKnXNzc49YMlcRdHXcSwxFVgTInQhC9G33UhNoJLuqq6t345p9y3eUy8OTk5PjAHuI9uo4b07FBaOhsu0A4Unc+T1TU1Nj3KsSSE5yJ65jqF2DDd8QqWYmAZrIM2VlZTdnZmb6AbpdV9V6ec9znf5Q7HjYumdRE0JOp3MjitO4SFa+cZz8Umqe3TCbSLvdfkR/kWDdNQl5InuTcysOcpFT35ZrbBxx4p3JAHlZVVW1D/634VRt+FvLBgK/v5LV9WS+10xMTEwtRw7XvqOL+e2Q8V3AYIOIAXQ26/heWVnZCVfcyKHg2CBgTpmPmjYM8l24GyaUHyaIh7XwfR9ErE8qHoDfn2LTNAVC0HX6MFcBIP8Bi+6F6cdW/DICkANRfx99fEYFQ7Nph5i/uQiA214gno7K+guhaiKg9gC62+M8eR7XsBsYJ4ilam60Fb7r7uAj8wFyuwM1oIOWgfmDy6RXEEQzJMPe23DXrVS7rtyD3Df8z/FPgAEAzWU5Ku59ZAUAAAAASUVORK5CYII=">
-      </a>
-
-      <a href="/" class="logo logo-img-2x">
-        <img width="32" height="32" title="" alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyRpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMy1jMDExIDY2LjE0NTY2MSwgMjAxMi8wMi8wNi0xNDo1NjoyNyAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNiAoTWFjaW50b3NoKSIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDpEQUM1QkUxRUI0MUMxMUUyQUQzREIxQzRENUFFNUM5NiIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDpEQUM1QkUxRkI0MUMxMUUyQUQzREIxQzRENUFFNUM5NiI+IDx4bXBNTTpEZXJpdmVkRnJvbSBzdFJlZjppbnN0YW5jZUlEPSJ4bXAuaWlkOkUxNkJENjdGQjNGMDExRTJBRDNEQjFDNEQ1QUU1Qzk2IiBzdFJlZjpkb2N1bWVudElEPSJ4bXAuZGlkOkUxNkJENjgwQjNGMDExRTJBRDNEQjFDNEQ1QUU1Qzk2Ii8+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+hfPRaQAAB6lJREFUeNrsW2mM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">
-      </a>
     </div>
-  </body>
+    <input type="file" id="file-input" accept="audio/*,video/mp4">
+    <div class="btn-row"><button class="primary" id="play-btn" disabled>play</button></div>
+    <div class="btn-row">
+      <button id="bypass-btn" disabled>bypass effects</button>
+      <div class="bypass-indicator"><div class="bypass-dot on" id="bypass-dot"></div><span id="bypass-lbl">vinyl on</span></div>
+    </div>
+    <div id="decode-status"></div>
+    <div style="font-size:10px;color:var(--text3);text-align:center" id="play-count"></div>
+  </div>
+  <div class="right">
+    <div class="track-info">
+      <div class="track-title" id="track-title">no track loaded</div>
+      <div class="track-sub" id="track-sub">pick a sample below or drop your own file</div>
+    </div>
+    <div id="controls-wrap">
+      <div style="margin-bottom:8px"><div class="section-label">sample library</div><div class="samples-grid" id="samples-grid"></div></div>
+      <div style="margin-bottom:8px"><div class="section-label">presets</div><div class="presets-grid" id="presets-grid"></div></div>
+      <div class="master-block">
+        <div class="master-row">
+          <div class="master-label">record wear<span class="master-sub">shifts all effect floors</span></div>
+          <input type="range" id="sl-wear" min="0" max="100" value="20" step="1">
+          <span class="master-val" id="sl-wear-v">20% &mdash; lightly worn</span>
+        </div>
+        <div class="master-row">
+          <div class="master-label">master intensity<span class="master-sub">scales all effects</span></div>
+          <input type="range" id="sl-master" min="0" max="100" value="30" step="1">
+          <span class="master-val" id="sl-master-v">30</span>
+        </div>
+      </div>
+      <div id="sections-wrap" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>
+    </div>
+  </div>
+</div>
+<script>
+var BASE_URL = "https://ntropyk667.github.io/vinyl/";
+var EFFECT_INFO = {"sl-wow":"Slow pitch drift from the motor spinning at uneven speed.","sl-flutter":"Fast pitch shimmer around 8Hz from bearing wobble.","sl-warp":"Very slow pitch cycle (~0.3Hz) from a physically warped record.","sl-drift":"Gradual motor speed creep over a session.","sl-track":"Tracking weight. Low = stylus skipping. High = heavy pressure.","sl-crack":"Random noise bursts from dust and groove scratches.","sl-hiss":"Broadband high-frequency noise from the phono preamp.","sl-rumble":"Very low frequency vibration (~25Hz) from the motor and bearing.","sl-press":"Mid-frequency haze baked into the vinyl during manufacturing.","sl-hf":"Low-pass filter sweeping down with wear. Cymbals go soft.","sl-sat":"Soft-clipping waveshaper modeled on tube preamp distortion.","sl-riaa":"Imperfection in the RIAA equalization curve.","sl-width":"Narrows the stereo field toward mono.","sl-igd":"As the stylus tracks toward the label, high frequencies distort.","sl-az":"Cartridge misalignment delays one channel slightly.","sl-room":"Narrow resonant peak around 180Hz from the turntable plinth."};
+var SAMPLES=[{id:"neon",title:"A Neon Flesh",artist:"Kai Engel",genre:"ambient piano",file:"01_-_%20A_Neon_Flesh.mp3"},{id:"easiness",title:"Easiness",artist:"Dee Yan-Key",genre:"jazz / swing",file:"Dee%20Yan-Key%20-%20Easiness.mp3"},{id:"france",title:"One Night In France",artist:"HoliznaCC0",genre:"lo-fi / nostalgic",file:"HoliznaCC0%20-%20One%20Night%20In%20France%20(%20Lofi%2C%20Nostalgic%2C%20Chill%20).mp3"},{id:"srv",title:"not SRV",artist:"unknown",genre:"blues / guitar",file:"not%20SRV.mp4"}];
+var DEFAULT_VALS={wear:20,master:30,"sl-wow":35,"sl-flutter":25,"sl-warp":10,"sl-drift":15,"sl-track":50,"sl-crack":40,"sl-hiss":30,"sl-rumble":35,"sl-press":20,"sl-hf":30,"sl-sat":40,"sl-riaa":20,"sl-width":75,"sl-igd":25,"sl-az":15,"sl-room":20};
+var PRESETS=[{id:"custom",name:"custom",desc:"default settings",vals:DEFAULT_VALS},{id:"fatigue",name:"low ear fatigue",desc:"warm, smooth, long sessions",vals:{wear:15,master:25,"sl-wow":20,"sl-flutter":5,"sl-warp":0,"sl-drift":5,"sl-track":50,"sl-crack":8,"sl-hiss":35,"sl-rumble":20,"sl-press":15,"sl-hf":45,"sl-sat":65,"sl-riaa":30,"sl-width":70,"sl-igd":5,"sl-az":5,"sl-room":25}},{id:"latenight",name:"late night",desc:"dark, worn, 2am listening",vals:{wear:55,master:55,"sl-wow":25,"sl-flutter":15,"sl-warp":40,"sl-drift":30,"sl-track":50,"sl-crack":30,"sl-hiss":70,"sl-rumble":60,"sl-press":40,"sl-hf":60,"sl-sat":50,"sl-riaa":20,"sl-width":60,"sl-igd":20,"sl-az":20,"sl-room":55}},{id:"wellloved",name:"well loved",desc:"played hundreds of times",vals:{wear:70,master:65,"sl-wow":40,"sl-flutter":30,"sl-warp":20,"sl-drift":20,"sl-track":50,"sl-crack":75,"sl-hiss":50,"sl-rumble":45,"sl-press":60,"sl-hf":55,"sl-sat":45,"sl-riaa":35,"sl-width":65,"sl-igd":50,"sl-az":25,"sl-room":30}},{id:"needledrop",name:"needle drop",desc:"stylus mechanics, physical feel",vals:{wear:30,master:60,"sl-wow":65,"sl-flutter":70,"sl-warp":30,"sl-drift":40,"sl-track":35,"sl-crack":40,"sl-hiss":25,"sl-rumble":30,"sl-press":20,"sl-hf":25,"sl-sat":30,"sl-riaa":25,"sl-width":75,"sl-igd":65,"sl-az":45,"sl-room":20}},{id:"78rpm",name:"78 rpm era",desc:"pre-war shellac sound",vals:{wear:60,master:70,"sl-wow":35,"sl-flutter":45,"sl-warp":15,"sl-drift":25,"sl-track":50,"sl-crack":60,"sl-hiss":80,"sl-rumble":50,"sl-press":80,"sl-hf":85,"sl-sat":80,"sl-riaa":70,"sl-width":20,"sl-igd":70,"sl-az":30,"sl-room":60}},{id:"audiophile",name:"audiophile",desc:"pristine high-end deck",vals:{wear:5,master:20,"sl-wow":10,"sl-flutter":5,"sl-warp":0,"sl-drift":5,"sl-track":60,"sl-crack":5,"sl-hiss":10,"sl-rumble":10,"sl-press":5,"sl-hf":8,"sl-sat":30,"sl-riaa":10,"sl-width":90,"sl-igd":5,"sl-az":5,"sl-room":15}},{id:"destroyed",name:"destroyed",desc:"barely listenable",vals:{wear:95,master:100,"sl-wow":90,"sl-flutter":80,"sl-warp":85,"sl-drift":70,"sl-track":50,"sl-crack":100,"sl-hiss":90,"sl-rumble":85,"sl-press":90,"sl-hf":90,"sl-sat":85,"sl-riaa":70,"sl-width":40,"sl-igd":90,"sl-az":70,"sl-room":75}}];
+var SECTIONS=[{id:"playback",label:"playback mechanics",open:true,sliders:[{id:"sl-wow",label:"wow depth",sub:"slow pitch drift",def:35},{id:"sl-flutter",label:"flutter",sub:"fast shimmer ~8hz",def:25},{id:"sl-warp",label:"warp wow",sub:"warped record ~0.3hz",def:10},{id:"sl-drift",label:"speed drift",sub:"motor creep over time",def:15},{id:"sl-track",label:"tracking weight",sub:"0=light skip / 100=heavy dist",def:50}]},{id:"noise",label:"noise floor",open:false,sliders:[{id:"sl-crack",label:"crackle",sub:"dust & scratches",def:40},{id:"sl-hiss",label:"hiss",sub:"phono stage noise",def:30},{id:"sl-rumble",label:"rumble",sub:"motor & bearing",def:35},{id:"sl-press",label:"pressed noise",sub:"manufacturing haze",def:20}]},{id:"tone",label:"tonal character",open:false,sliders:[{id:"sl-hf",label:"hf rolloff",sub:"groove wear / treble loss",def:30},{id:"sl-sat",label:"saturation",sub:"tube preamp warmth",def:40},{id:"sl-riaa",label:"riaa variance",sub:"eq curve imperfection",def:20},{id:"sl-width",label:"stereo width",sub:"0=mono / 100=full stereo",def:75}]},{id:"cartridge",label:"cartridge & room",open:false,sliders:[{id:"sl-igd",label:"inner groove dist",sub:"distortion near label",def:25},{id:"sl-az",label:"azimuth error",sub:"channel phase mismatch",def:15},{id:"sl-room",label:"room resonance",sub:"turntable coupling",def:20}]}];
+var WEAR_LABELS=["pristine","pristine","lightly worn","lightly worn","lightly worn","well played","well played","heavily worn","heavily worn","degraded"];
+var tooltip=document.getElementById("tooltip"),tooltipTarget=null;
+document.addEventListener("click",function(e){if(!e.target.classList.contains("info-btn")){tooltip.classList.remove("visible");tooltipTarget=null;}});
+function showTooltip(btn,text){if(tooltipTarget===btn){tooltip.classList.remove("visible");tooltipTarget=null;return;}tooltipTarget=btn;tooltip.textContent=text;tooltip.classList.add("visible");var rect=btn.getBoundingClientRect();tooltip.style.top=(rect.bottom+6)+"px";tooltip.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-296))+"px";}
+var samplesGrid=document.getElementById("samples-grid");
+SAMPLES.forEach(function(s){var btn=document.createElement("button");btn.className="sample-btn";btn.id="sample-"+s.id;btn.innerHTML="<span class='sample-name'>"+s.title+"</span><span class='sample-artist'>"+s.artist+"</span><span class='sample-genre'>"+s.genre+"</span>";btn.onclick=function(){loadSample(s);};samplesGrid.appendChild(btn);});
+function loadSample(s){document.querySelectorAll(".sample-btn").forEach(function(b){b.classList.remove("active","loading");});var btn=document.getElementById("sample-"+s.id);btn.classList.add("loading");document.getElementById("decode-status").textContent="loading…";fetch(BASE_URL+s.file).then(function(r){return r.arrayBuffer();}).then(function(buf){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();audioCtx.decodeAudioData(buf,function(decoded){if(isPlaying)stopPlaying();audioBuffer=decoded;currentFileName=s.title;var saved=loadSt(s.title);wear=saved.wear;plays=saved.plays;noiseSeed=saved.seed;document.getElementById("sl-wear").value=wear;document.getElementById("sl-wear-v").textContent=wear+"% — "+WEAR_LABELS[Math.min(9,Math.floor(wear/10))];document.getElementById("track-title").textContent=s.title;document.getElementById("track-sub").textContent=s.artist+" · "+s.genre+" · CC0";document.getElementById("play-btn").disabled=false;document.getElementById("bypass-btn").disabled=false;document.getElementById("drop-content").style.display="none";canvas.style.display="block";document.getElementById("drop-zone").classList.add("has-file");btn.classList.remove("loading");btn.classList.add("active");document.getElementById("decode-status").textContent="";document.getElementById("play-count").textContent=plays===0?"":plays===1?"played once":"played "+plays+" times";drawRecord(0);},function(){btn.classList.remove("loading");document.getElementById("decode-status").textContent="failed to decode";});}).catch(function(){btn.classList.remove("loading");document.getElementById("decode-status").textContent="failed to load";});}
+var presetsGrid=document.getElementById("presets-grid");
+PRESETS.forEach(function(p){var btn=document.createElement("button");btn.className="preset-btn"+(p.id==="custom"?" active":"");btn.id="preset-"+p.id;btn.innerHTML="<span class='preset-name'>"+p.name+"</span><span class='preset-desc'>"+p.desc+"</span>";btn.onclick=function(){applyPreset(p);};presetsGrid.appendChild(btn);});
+function applyPreset(p){document.querySelectorAll(".preset-btn").forEach(function(b){b.classList.remove("active");});document.getElementById("preset-"+p.id).classList.add("active");wear=p.vals.wear;document.getElementById("sl-wear").value=wear;document.getElementById("sl-wear-v").textContent=wear+"% — "+WEAR_LABELS[Math.min(9,Math.floor(wear/10))];document.getElementById("sl-master").value=p.vals.master;document.getElementById("sl-master-v").textContent=p.vals.master;SECTIONS.forEach(function(sec){sec.sliders.forEach(function(sl){if(p.vals[sl.id]!==undefined){document.getElementById(sl.id).value=p.vals[sl.id];document.getElementById(sl.id+"-v").textContent=p.vals[sl.id];baseVals[sl.id]=p.vals[sl.id];}});});drawRecord(rotation);if(isPlaying&&!isBypassed)applyP(calcP());}
+var wrap=document.getElementById("sections-wrap");
+SECTIONS.forEach(function(sec){var div=document.createElement("div");div.className="section";var bodyRows=sec.sliders.map(function(s){return "<div class='sl-row'><div class='sl-label'>"+s.label+"<span class='sl-sub'>"+s.sub+"</span></div><input type='range' id='"+s.id+"' min='0' max='100' value='"+s.def+"' step='1'><span class='sl-val' id='"+s.id+"-v'>"+s.def+"</span><button class='info-btn' data-id='"+s.id+"'>i</button></div>";}).join("");div.innerHTML="<div class='sec-header'><span class='sec-title'>"+sec.label+"</span><div class='sec-meta'><span class='sec-badge'>"+sec.sliders.length+" controls</span><span class='chevron"+(sec.open?" open":"")+"'>&#9660;</span></div></div><div class='sec-body"+(sec.open?"":" collapsed")+"' id='body-"+sec.id+"'>"+bodyRows+"</div>";wrap.appendChild(div);div.querySelector(".sec-header").addEventListener("click",function(){var b=document.getElementById("body-"+sec.id);var c=div.querySelector(".chevron");var collapsed=b.classList.toggle("collapsed");c.classList.toggle("open",!collapsed);});div.querySelectorAll(".info-btn").forEach(function(btn){btn.addEventListener("click",function(e){e.stopPropagation();showTooltip(btn,EFFECT_INFO[btn.dataset.id]||"");});});});
+var masterVal=30,baseVals={};
+SECTIONS.forEach(function(s){s.sliders.forEach(function(sl){baseVals[sl.id]=sl.def;});});
+document.getElementById("sl-wear").oninput=function(){wear=parseInt(this.value);document.getElementById("sl-wear-v").textContent=wear+"% — "+WEAR_LABELS[Math.min(9,Math.floor(wear/10))];document.querySelectorAll(".preset-btn").forEach(function(b){b.classList.remove("active");});drawRecord(rotation);if(isPlaying&&!isBypassed)applyP(calcP());saveSt();};
+document.getElementById("sl-master").oninput=function(){masterVal=parseInt(this.value);document.getElementById("sl-master-v").textContent=masterVal;document.querySelectorAll(".preset-btn").forEach(function(b){b.classList.remove("active");});var ratio=masterVal/50;SECTIONS.forEach(function(sec){sec.sliders.forEach(function(sl){if(sl.id==="sl-width"||sl.id==="sl-track")return;var el=document.getElementById(sl.id);var nv=Math.round(Math.min(100,Math.max(0,baseVals[sl.id]*ratio)));el.value=nv;document.getElementById(sl.id+"-v").textContent=nv;});});if(isPlaying&&!isBypassed)applyP(calcP());};
+SECTIONS.forEach(function(sec){sec.sliders.forEach(function(sl){document.getElementById(sl.id).oninput=function(){document.getElementById(sl.id+"-v").textContent=this.value;baseVals[sl.id]=parseInt(this.value);document.querySelectorAll(".preset-btn").forEach(function(b){b.classList.remove("active");});if(isPlaying&&!isBypassed)applyP(calcP());};});});
+var audioCtx=null,audioBuffer=null,isPlaying=false,isBypassed=false,rotation=0,wear=20,plays=0,noiseSeed=Math.random()*10000,animFrame=null,driftInterval=null,currentFileName="",nodes={},driftOffset=0,driftDir=1;
+function seededRand(s,n){var x=Math.sin(s+n)*10000;return x-Math.floor(x);}
+function loadSt(n){try{var d=localStorage.getItem("vinyl_app_"+n);return d?JSON.parse(d):{wear:20,plays:0,seed:Math.random()*10000};}catch(e){return{wear:20,plays:0,seed:Math.random()*10000};}}
+function saveSt(){try{localStorage.setItem("vinyl_app_"+currentFileName,JSON.stringify({wear:wear,plays:plays,seed:noiseSeed}));}catch(e){}}
+var canvas=document.getElementById("record-canvas"),ctx=canvas.getContext("2d");
+function drawRecord(rot){ctx.clearRect(0,0,240,240);ctx.save();ctx.translate(120,120);ctx.rotate(rot);ctx.beginPath();ctx.arc(0,0,119,0,Math.PI*2);ctx.fillStyle="#141414";ctx.fill();for(var r=34;r<113;r+=2.8){var v=seededRand(noiseSeed,r)*(wear/100)*0.5;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.strokeStyle=r%5.6<2.8?"rgba(0,0,0,0.5)":"rgba(255,255,255,0.06)";ctx.lineWidth=0.5+v*0.6;ctx.stroke();}ctx.beginPath();ctx.arc(0,0,34,0,Math.PI*2);ctx.fillStyle="#1e2d4a";ctx.fill();ctx.fillStyle="rgba(200,184,154,0.7)";ctx.font="500 5px DM Mono";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(document.getElementById("track-title").textContent.substring(0,14).toUpperCase(),0,-5);ctx.fillStyle="rgba(200,184,154,0.35)";ctx.font="5px DM Mono";ctx.fillText("SIDE A",0,4);if(wear>20){var sc=Math.floor(wear/15);for(var i=0;i<sc;i++){var a=seededRand(noiseSeed,i*77)*Math.PI*2;var r1=36+seededRand(noiseSeed,i*78)*72;var len=seededRand(noiseSeed,i*79)*12+2;ctx.save();ctx.rotate(a);ctx.beginPath();ctx.moveTo(r1,0);ctx.lineTo(r1+len,seededRand(noiseSeed,i*80)*3-1.5);ctx.strokeStyle="rgba(255,255,255,0.09)";ctx.lineWidth=0.4;ctx.stroke();ctx.restore();}}ctx.beginPath();ctx.arc(0,0,4,0,Math.PI*2);ctx.fillStyle="#555";ctx.fill();ctx.restore();}
+function g(id){return parseInt(document.getElementById(id).value)/100;}
+function calcP(){var w=wear/100;return{wowD:(0.004+w*0.035)*g("sl-wow"),flutterD:(0.002+w*0.02)*g("sl-flutter"),warpD:(0.006+w*0.05)*g("sl-warp"),driftD:(0.00005+w*0.0003)*g("sl-drift"),crackV:(0.08+w*0.55)*g("sl-crack"),crackP:(0.0002+w*0.007)*g("sl-crack"),hissV:(0.01+w*0.08)*g("sl-hiss"),rumbleV:(0.02+w*0.22)*g("sl-rumble"),pressV:(0.005+w*0.04)*g("sl-press"),cutoff:Math.max(600,18000-(w*11000)-(g("sl-hf")*13000)),satD:g("sl-sat")*0.7,riaaV:g("sl-riaa"),widthV:g("sl-width"),igdD:(w*0.3+0.05)*g("sl-igd"),azV:g("sl-az")*0.015,roomV:(0.01+w*0.06)*g("sl-room")};}
+function applyP(p){if(!nodes.masterGain)return;var t=audioCtx.currentTime,b=isBypassed;nodes.wowGain&&nodes.wowGain.gain.setTargetAtTime(b?0:p.wowD,t,0.05);nodes.flutterGain&&nodes.flutterGain.gain.setTargetAtTime(b?0:p.flutterD,t,0.05);nodes.warpGain&&nodes.warpGain.gain.setTargetAtTime(b?0:p.warpD,t,0.05);nodes.crackleGain&&nodes.crackleGain.gain.setTargetAtTime(b?0:p.crackV,t,0.05);nodes.hissGain&&nodes.hissGain.gain.setTargetAtTime(b?0:p.hissV,t,0.05);nodes.rumbleGain&&nodes.rumbleGain.gain.setTargetAtTime(b?0:p.rumbleV,t,0.05);nodes.pressGain&&nodes.pressGain.gain.setTargetAtTime(b?0:p.pressV,t,0.05);nodes.roomGain&&nodes.roomGain.gain.setTargetAtTime(b?0:p.roomV,t,0.05);nodes.lpFilter&&nodes.lpFilter.frequency.setTargetAtTime(b?20000:p.cutoff,t,0.1);nodes._p=p;}
+function teardown(){try{nodes.source&&nodes.source.stop();}catch(e){}Object.values(nodes).forEach(function(n){try{n&&n.disconnect&&n.disconnect();}catch(e){}});nodes={};driftOffset=0;driftDir=1;}
+function buildNodes(){teardown();var p=calcP();nodes._p=p;var AC=audioCtx;nodes.masterGain=AC.createGain();nodes.masterGain.gain.value=0.95;nodes.masterGain.connect(AC.destination);nodes.lpFilter=AC.createBiquadFilter();nodes.lpFilter.type="lowpass";nodes.lpFilter.frequency.value=isBypassed?20000:p.cutoff;nodes.lpFilter.Q.value=0.6;nodes.lpFilter.connect(nodes.masterGain);nodes.hpFilter=AC.createBiquadFilter();nodes.hpFilter.type="highpass";nodes.hpFilter.frequency.value=28;nodes.hpFilter.Q.value=0.7;nodes.hpFilter.connect(nodes.lpFilter);nodes.shaper=AC.createWaveShaper();var sc=new Float32Array(512);for(var i=0;i<512;i++){var x=(i/255)-1;sc[i]=isBypassed?x:Math.tanh(x*(1+p.satD*6))/(1+p.satD*0.5);}nodes.shaper.curve=sc;nodes.shaper.oversample="2x";nodes.shaper.connect(nodes.hpFilter);nodes.riaaEQ=AC.createBiquadFilter();nodes.riaaEQ.type="peaking";nodes.riaaEQ.frequency.value=850+Math.random()*300;nodes.riaaEQ.Q.value=0.8;nodes.riaaEQ.gain.value=isBypassed?0:(p.riaaV*6-3);nodes.riaaEQ.connect(nodes.shaper);nodes.igdShaper=AC.createWaveShaper();var igc=new Float32Array(512);var ia=isBypassed?0:p.igdD;for(var j=0;j<512;j++){var xj=(j/255)-1;igc[j]=ia>0.01?Math.tanh(xj*(1+ia*12))/(1+ia*0.3):xj;}nodes.igdShaper.curve=igc;nodes.igdShaper.oversample="2x";nodes.igdShaper.connect(nodes.riaaEQ);nodes.azDelay=AC.createDelay(0.02);nodes.azDelay.delayTime.value=isBypassed?0:p.azV;nodes.azDelay.connect(nodes.igdShaper);nodes.splitter=AC.createChannelSplitter(2);nodes.merger=AC.createChannelMerger(2);nodes.midG=AC.createGain();nodes.midG.gain.value=1;nodes.sideG=AC.createGain();nodes.sideG.gain.value=isBypassed?1:Math.max(0.05,p.widthV);nodes.splitter.connect(nodes.midG,0);nodes.splitter.connect(nodes.sideG,1);nodes.midG.connect(nodes.merger,0,0);nodes.sideG.connect(nodes.merger,0,1);nodes.merger.connect(nodes.azDelay);nodes.roomEQ=AC.createBiquadFilter();nodes.roomEQ.type="peaking";nodes.roomEQ.frequency.value=170+Math.random()*80;nodes.roomEQ.Q.value=3;nodes.roomGain=AC.createGain();nodes.roomGain.gain.value=isBypassed?0:p.roomV;nodes.splitter.connect(nodes.roomEQ,0);nodes.roomEQ.connect(nodes.roomGain);nodes.roomGain.connect(nodes.masterGain);nodes.source=AC.createBufferSource();nodes.source.buffer=audioBuffer;nodes.source.loop=true;nodes.source.playbackRate.value=1;nodes.source.connect(nodes.splitter);nodes.wowLFO=AC.createOscillator();nodes.wowLFO.type="sine";nodes.wowLFO.frequency.value=0.38+Math.random()*0.15;nodes.wowGain=AC.createGain();nodes.wowGain.gain.value=isBypassed?0:p.wowD;nodes.wowLFO.connect(nodes.wowGain);if(!isBypassed)nodes.wowGain.connect(nodes.source.playbackRate);nodes.flutterLFO=AC.createOscillator();nodes.flutterLFO.type="sine";nodes.flutterLFO.frequency.value=7+Math.random()*4;nodes.flutterGain=AC.createGain();nodes.flutterGain.gain.value=isBypassed?0:p.flutterD;nodes.flutterLFO.connect(nodes.flutterGain);if(!isBypassed)nodes.flutterGain.connect(nodes.source.playbackRate);nodes.warpLFO=AC.createOscillator();nodes.warpLFO.type="sine";nodes.warpLFO.frequency.value=0.23+Math.random()*0.08;nodes.warpGain=AC.createGain();nodes.warpGain.gain.value=isBypassed?0:p.warpD;nodes.warpLFO.connect(nodes.warpGain);if(!isBypassed)nodes.warpGain.connect(nodes.source.playbackRate);nodes.rumbleOsc=AC.createOscillator();nodes.rumbleOsc.type="sine";nodes.rumbleOsc.frequency.value=22+Math.random()*8;nodes.rumbleOsc2=AC.createOscillator();nodes.rumbleOsc2.type="sine";nodes.rumbleOsc2.frequency.value=36+Math.random()*10;nodes.rumbleGain=AC.createGain();nodes.rumbleGain.gain.value=isBypassed?0:p.rumbleV;nodes.rumbleOsc.connect(nodes.rumbleGain);nodes.rumbleOsc2.connect(nodes.rumbleGain);nodes.rumbleGain.connect(nodes.masterGain);var hbuf=AC.createBuffer(1,AC.sampleRate*2,AC.sampleRate);var hd=hbuf.getChannelData(0);for(var hi=0;hi<hd.length;hi++)hd[hi]=(Math.random()*2-1);nodes.hissSource=AC.createBufferSource();nodes.hissSource.buffer=hbuf;nodes.hissSource.loop=true;nodes.hissFilter=AC.createBiquadFilter();nodes.hissFilter.type="highpass";nodes.hissFilter.frequency.value=3500;nodes.hissGain=AC.createGain();nodes.hissGain.gain.value=isBypassed?0:p.hissV;nodes.hissSource.connect(nodes.hissFilter);nodes.hissFilter.connect(nodes.hissGain);nodes.hissGain.connect(nodes.masterGain);var pbuf=AC.createBuffer(1,AC.sampleRate*3,AC.sampleRate);var pd=pbuf.getChannelData(0);for(var pi=0;pi<pd.length;pi++)pd[pi]=(Math.random()*2-1);nodes.pressSource=AC.createBufferSource();nodes.pressSource.buffer=pbuf;nodes.pressSource.loop=true;nodes.pressFilter=AC.createBiquadFilter();nodes.pressFilter.type="bandpass";nodes.pressFilter.frequency.value=700;nodes.pressFilter.Q.value=0.4;nodes.pressGain=AC.createGain();nodes.pressGain.gain.value=isBypassed?0:p.pressV;nodes.pressSource.connect(nodes.pressFilter);nodes.pressFilter.connect(nodes.pressGain);nodes.pressGain.connect(nodes.masterGain);nodes.crackleNode=AC.createScriptProcessor(1024,0,1);nodes.crackleGain=AC.createGain();nodes.crackleGain.gain.value=isBypassed?0:p.crackV;var cp=0,ca=1;nodes.crackleNode.onaudioprocess=function(e){var out=e.outputBuffer.getChannelData(0);var prob=nodes._p?nodes._p.crackP:0.001;for(var ci=0;ci<out.length;ci++){if(isPlaying&&!isBypassed&&Math.random()<prob){cp=5+Math.floor(Math.random()*22);ca=0.4+Math.random()*0.6;}out[ci]=(cp>0&&isPlaying&&!isBypassed)?(Math.random()*2-1)*ca*(cp/27):0;if(cp>0)cp--;}};nodes.crackleNode.connect(nodes.crackleGain);nodes.crackleGain.connect(nodes.masterGain);nodes.source.start(0);nodes.wowLFO.start();nodes.flutterLFO.start();nodes.warpLFO.start();nodes.rumbleOsc.start();nodes.rumbleOsc2.start();nodes.hissSource.start(0);nodes.pressSource.start(0);}
+function startDrift(){driftInterval=setInterval(function(){if(!isPlaying||isBypassed||!nodes.source)return;var p=calcP();driftOffset+=driftDir*p.driftD*(0.5+Math.random()*0.5);if(Math.abs(driftOffset)>0.008)driftDir*=-1;nodes.source.playbackRate.value=Math.max(0.97,Math.min(1.03,1+driftOffset));},500);}
+function startPlaying(){isPlaying=true;document.getElementById("play-btn").textContent="stop";plays++;noiseSeed+=seededRand(noiseSeed,plays)*500;audioCtx.resume().then(function(){buildNodes();startDrift();function spin(){if(!isPlaying)return;rotation+=0.015;var wb=isBypassed?0:(Math.random()-0.5)*0.004*(wear/100);drawRecord(rotation+wb);animFrame=requestAnimationFrame(spin);}animFrame=requestAnimationFrame(spin);});document.getElementById("play-count").textContent=plays===1?"played once":"played "+plays+" times";}
+function stopPlaying(){isPlaying=false;document.getElementById("play-btn").textContent="play";clearInterval(driftInterval);cancelAnimationFrame(animFrame);teardown();saveSt();drawRecord(rotation);}
+function loadFile(file){if(isPlaying)stopPlaying();currentFileName=file.name.replace(/.[^.]+$/,"");var saved=loadSt(currentFileName);wear=saved.wear;plays=saved.plays;noiseSeed=saved.seed;document.getElementById("sl-wear").value=wear;document.getElementById("sl-wear-v").textContent=Math.round(wear)+"% — "+WEAR_LABELS[Math.min(9,Math.floor(wear/10))];document.getElementById("track-title").textContent=currentFileName;document.getElementById("track-sub").textContent=file.name+" · "+Math.round(file.size/1024)+" KB";document.getElementById("decode-status").textContent="decoding…";if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();var reader=new FileReader();reader.onload=function(e){audioCtx.decodeAudioData(e.target.result,function(buf){audioBuffer=buf;["play-btn","bypass-btn"].forEach(function(id){document.getElementById(id).disabled=false;});document.querySelectorAll(".sample-btn").forEach(function(b){b.classList.remove("active");});document.getElementById("drop-content").style.display="none";canvas.style.display="block";document.getElementById("drop-zone").classList.add("has-file");drawRecord(0);document.getElementById("decode-status").textContent="";document.getElementById("play-count").textContent=plays===0?"":plays===1?"played once":"played "+plays+" times";},function(){document.getElementById("decode-status").textContent="decode failed";});};reader.readAsArrayBuffer(file);}
+var dz=document.getElementById("drop-zone"),fi=document.getElementById("file-input");
+dz.onclick=function(){fi.click();};fi.onchange=function(e){if(e.target.files[0])loadFile(e.target.files[0]);};
+dz.ondragover=function(e){e.preventDefault();dz.style.opacity="0.7";};dz.ondragleave=function(){dz.style.opacity="1";};
+dz.ondrop=function(e){e.preventDefault();dz.style.opacity="1";if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);};
+document.getElementById("play-btn").onclick=function(){if(!audioBuffer)return;isPlaying?stopPlaying():startPlaying();};
+document.getElementById("bypass-btn").onclick=function(){isBypassed=!isBypassed;this.textContent=isBypassed?"enable effects":"bypass effects";this.classList.toggle("bypass-on",isBypassed);document.getElementById("bypass-dot").classList.toggle("on",!isBypassed);document.getElementById("bypass-lbl").textContent=isBypassed?"bypassed":"vinyl on";document.getElementById("controls-wrap").classList.toggle("bypassed",isBypassed);if(isPlaying)applyP(calcP());};
+</script>
+</body>
 </html>
