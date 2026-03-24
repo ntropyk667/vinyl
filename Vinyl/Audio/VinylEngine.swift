@@ -36,16 +36,62 @@ class VinylEngine: ObservableObject {
     private var wowTimer: Timer?
     private var driftOffset: Double = 0
     private var driftDir: Double = 1
+    private var noiseUpdateWorkItem: DispatchWorkItem?
 
     init() {
         setupAudioSession()
         setupEngine()
+        setupInterruptionHandling()
         applyPreset(.electronic)
     }
 
     private func setupAudioSession() {
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-        try? AVAudioSession.sharedInstance().setActive(true)
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("Audio session error: \(error)")
+        }
+    }
+
+    private func setupInterruptionHandling() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleInterruption),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleRouteChange),
+            name: AVAudioSession.routeChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleInterruption(_ notification: Notification) {
+        guard let info = notification.userInfo,
+              let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+        DispatchQueue.main.async {
+            if type == .began {
+                if self.isPlaying { self.stopPlayback() }
+            } else if type == .ended {
+                try? AVAudioSession.sharedInstance().setActive(true)
+                if !self.engine.isRunning { try? self.engine.start() }
+            }
+        }
+    }
+
+    @objc private func handleRouteChange(_ notification: Notification) {
+        guard let info = notification.userInfo,
+              let reasonValue = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
+        if reason == .oldDeviceUnavailable {
+            DispatchQueue.main.async {
+                if self.isPlaying { self.stopPlayback() }
+            }
+        }
     }
 
     private func setupEngine() {
@@ -85,7 +131,12 @@ class VinylEngine: ObservableObject {
         engine.connect(rumblePlayer, to: masterMixer, format: fmt)
         engine.connect(cracklePlayer, to: masterMixer, format: fmt)
         engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
-        try? engine.start()
+
+        do {
+            try engine.start()
+        } catch {
+            print("Engine start error: \(error)")
+        }
         generateNoise()
     }
 
@@ -172,8 +223,13 @@ class VinylEngine: ObservableObject {
     func loadTrack(_ track: SampleTrack) {
         let wasPlaying = isPlaying
         if isPlaying { stopPlayback() }
+        engine.detach(playerNode)
+        playerNode = AVAudioPlayerNode()
+        engine.attach(playerNode)
+        engine.connect(playerNode, to: hpFilter, format: nil)
         currentTrack = track
         pausedPosition = 0
+        currentTime = 0
         let url = Bundle.main.url(forResource: track.filename, withExtension: "mp3")
             ?? Bundle.main.url(forResource: track.filename, withExtension: "m4a")
             ?? Bundle.main.url(forResource: track.filename, withExtension: "mp4")
@@ -196,7 +252,12 @@ class VinylEngine: ObservableObject {
     func loadFile(url: URL) {
         let wasPlaying = isPlaying
         if isPlaying { stopPlayback() }
+        engine.detach(playerNode)
+        playerNode = AVAudioPlayerNode()
+        engine.attach(playerNode)
+        engine.connect(playerNode, to: hpFilter, format: nil)
         pausedPosition = 0
+        currentTime = 0
         do {
             audioFile = try AVAudioFile(forReading: url)
             guard let af = audioFile else { return }
@@ -212,49 +273,6 @@ class VinylEngine: ObservableObject {
             if wasPlaying { startPlayback() }
         } catch { print("Load error: \(error)") }
     }
-
-    func startPlayback() {
-        guard let buffer = audioBuffer else { return }
-        if !engine.isRunning { try? engine.start() }
-        let sr = audioFile?.fileFormat.sampleRate ?? 44100
-        let startFrame = AVAudioFramePosition(pausedPosition * sr)
-        let frameCount = buffer.frameLength - AVAudioFrameCount(startFrame)
-        guard frameCount > 0 else { return }
-        playerNode.stop()
-        guard let fmt = audioBuffer?.format,
-              let sub = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: frameCount) else { return }
-        sub.frameLength = frameCount
-        for ch in 0..<Int(fmt.channelCount) {
-            guard let src = buffer.floatChannelData?[ch],
-                  let dst = sub.floatChannelData?[ch] else { continue }
-            memcpy(dst, src.advanced(by: Int(startFrame)), Int(frameCount) * MemoryLayout<Float>.size)
-        }
-        playerNode.scheduleBuffer(sub, at: nil, options: []) { [weak self] in
-            DispatchQueue.main.async { self?.handleEnd() }
-        }
-        playerNode.play()
-        hissPlayer.play()
-        rumblePlayer.play()
-        cracklePlayer.play()
-        isPlaying = true
-        startProgressTimer()
-        startDriftTimer()
-        startWow()
-        updateAllParams()
-    }
-
-    func stopPlayback() {
-        pausedPosition = currentTime
-        playerNode.pause()
-        hissPlayer.pause()
-        rumblePlayer.pause()
-        cracklePlayer.pause()
-        isPlaying = false
-        progressTimer?.invalidate()
-        driftTimer?.invalidate()
-        wowTimer?.invalidate()
-    }
-
     func togglePlayback() {
         if isPlaying { stopPlayback() } else { startPlayback() }
     }
@@ -270,22 +288,24 @@ class VinylEngine: ObservableObject {
     func restart() { seek(to: 0) }
 
     private func handleEnd() {
-        seek(to: 0)
+        pausedPosition = 0
+        currentTime = 0
         startPlayback()
     }
 
     private func startProgressTimer() {
+        progressTimer?.invalidate()
         progressTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             guard let self = self, self.isPlaying else { return }
-            let node = self.playerNode
-            guard let nodeTime = node.lastRenderTime,
-                  let playerTime = node.playerTime(forNodeTime: nodeTime) else { return }
+            guard let nodeTime = self.playerNode.lastRenderTime,
+                  let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime) else { return }
             let elapsed = Double(playerTime.sampleTime) / playerTime.sampleRate
             self.currentTime = min(self.pausedPosition + elapsed, self.duration)
         }
     }
 
     private func startDriftTimer() {
+        driftTimer?.invalidate()
         driftTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self = self, !self.isBypassed else { return }
             let w = Double(self.params.wear) / 100
@@ -298,6 +318,7 @@ class VinylEngine: ObservableObject {
 
     private func startWow() {
         wowTimer?.invalidate()
+        wowTimer = nil
         guard !isBypassed else { return }
         var phase: Double = 0
         let w = Double(params.wear) / 100
@@ -306,27 +327,38 @@ class VinylEngine: ObservableObject {
         let flutD = (0.002 + w * 0.02) * Double(params.flutter) / 100 * m
         let warpD = (0.006 + w * 0.05) * Double(params.warpWow) / 100 * m
         wowTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
+            guard let self = self, self.isPlaying else { return }
             phase += 0.05
             let wow = wowD * sin(2 * Double.pi * 0.4 * phase)
             let flut = flutD * sin(2 * Double.pi * 8 * phase)
             let warp = warpD * sin(2 * Double.pi * 0.25 * phase)
             let combined = 1.0 + wow + flut + warp + self.driftOffset
-            let rate = Float(max(0.97, min(1.03, combined)))
-            self.playerNode.rate = rate
+            self.playerNode.rate = Float(max(0.97, min(1.03, combined)))
         }
     }
 
     func applyPreset(_ preset: VinylPreset) {
         currentPreset = preset
         params = preset.params
-        updateAllParams()
+        updateVinylParams()
+        updateAmpParams()
+        scheduleNoiseUpdate()
     }
 
     func updateAllParams() {
         updateVinylParams()
         updateAmpParams()
-        updateNoiseParams()
+        scheduleNoiseUpdate()
+    }
+
+    // Debounce noise updates — regenerating buffers while playing is the main crash source
+    private func scheduleNoiseUpdate() {
+        noiseUpdateWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.updateNoiseParams()
+        }
+        noiseUpdateWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
     }
 
     func updateVinylParams() {
@@ -347,7 +379,6 @@ class VinylEngine: ObservableObject {
         satNode.wetDryMix = min(satAmt * 25, 20)
         riaaEQ.bands[0].gain = params.riaaVariance / 100 * m * 6 - 3
         roomEQ.bands[0].gain = params.roomResonance / 100 * m * 3
-        startWow()
     }
 
     func updateAmpParams() {
@@ -367,29 +398,21 @@ class VinylEngine: ObservableObject {
         let w = params.wear / 100
         let m = params.masterIntensity / 100
         let active = !isBypassed
-        let hg: Float = active ? Float((0.01 + Double(w) * 0.08) * Double(params.hiss) / 100 * Double(m)) : 0
-        let rg: Float = active ? Float((0.02 + Double(w) * 0.22) * Double(params.rumble) / 100 * Double(m)) : 0
-        let cg: Float = active ? Float((0.08 + Double(w) * 0.55) * Double(params.crackle) / 100 * Double(m)) : 0
-        let wasPlaying = hissPlayer.isPlaying
-        if let b = makePink(fmt, 3, hg) {
-            hissPlayer.stop()
-            hissPlayer.scheduleBuffer(b, at: nil, options: .loops)
-            if wasPlaying { hissPlayer.play() }
-        }
-        if let b = makeRumble(fmt, 2, rg) {
-            rumblePlayer.stop()
-            rumblePlayer.scheduleBuffer(b, at: nil, options: .loops)
-            if wasPlaying { rumblePlayer.play() }
-        }
-        if let b = makeCrackle(fmt, 2, cg) {
-            cracklePlayer.stop()
-            cracklePlayer.scheduleBuffer(b, at: nil, options: .loops)
-            if wasPlaying { cracklePlayer.play() }
-        }
+        let hg = active ? Float((0.01 + Double(w) * 0.08) * Double(params.hiss) / 100 * Double(m)) : Float(0)
+        let rg = active ? Float((0.02 + Double(w) * 0.22) * Double(params.rumble) / 100 * Double(m)) : Float(0)
+        let cg = active ? Float((0.08 + Double(w) * 0.55) * Double(params.crackle) / 100 * Double(m)) : Float(0)
+
+        // Only update gain via mixer volume — don't stop/reschedule buffers while playing
+        masterMixer.outputVolume = 1.0
+        hissPlayer.volume = hg * 8
+        rumblePlayer.volume = rg * 5
+        cracklePlayer.volume = cg * 3
     }
 
     func toggleBypass() {
         isBypassed.toggle()
-        updateAllParams()
+        updateVinylParams()
+        updateAmpParams()
+        scheduleNoiseUpdate()
     }
 }
