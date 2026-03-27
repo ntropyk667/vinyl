@@ -9,7 +9,7 @@ struct SampleLibraryView: View {
                 ForEach(SampleTrack.library) { track in
                     let presetName = VinylPreset.all.first(where: { $0.id == track.defaultPresetID })?.name ?? ""
                     Button("\(track.title) — \(track.artist) [\(presetName)]") {
-                        engine.loadTrack(track); engine.startPlayback()
+                        engine.loadTrack(track)
                     }
                 }
             } label: {

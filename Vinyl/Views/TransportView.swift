@@ -71,14 +71,14 @@ struct TransportView: View {
         } else {
             let idx = SampleTrack.library.firstIndex(where: { $0.id == engine.currentTrack?.id }) ?? 0
             let prev = SampleTrack.library[(idx - 1 + SampleTrack.library.count) % SampleTrack.library.count]
-            engine.loadTrack(prev); engine.startPlayback()
+            engine.loadTrack(prev)
         }
     }
 
     private func handleNext() {
         let idx = SampleTrack.library.firstIndex(where: { $0.id == engine.currentTrack?.id }) ?? 0
         let next = SampleTrack.library[(idx + 1) % SampleTrack.library.count]
-        engine.loadTrack(next); engine.startPlayback()
+        engine.loadTrack(next)
     }
 
     private func formatTime(_ s: Double) -> String {
