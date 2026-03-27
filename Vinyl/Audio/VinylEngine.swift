@@ -391,7 +391,7 @@ class VinylEngine: ObservableObject {
         let m = params.masterIntensity / 100
         let cutoff = max(600.0, 18000.0 - Double(w) * 11000 - Double(params.hfRolloff) / 100 * Double(m) * 13000)
         lpFilter.bands[0].frequency = Float(cutoff)
-        satNode.wetDryMix = min(params.saturation / 100 * m * 25, 20)
+        satNode.wetDryMix = 0  // saturation effect removed — tube warmth EQ handles all warmth
         riaaEQ.bands[0].gain = params.riaaVariance / 100 * m * 6 - 3
         roomEQ.bands[0].gain = params.roomResonance / 100 * m * 3
     }
@@ -400,11 +400,11 @@ class VinylEngine: ObservableObject {
         let pa = preampOn && !isBypassed
         let pw = powerampOn && !isBypassed
         let m = params.masterIntensity / 100
-        tubeWarmthEQ.bands[0].gain = pa ? params.saturation / 100 * m * 2.5 : 0
-        tubeAirEQ.bands[0].gain = pa ? -(params.hfRolloff / 100 * m * 0.75) : 0
-        microEQ.bands[0].gain = pa ? params.roomResonance / 100 * m * 1.2 : 0
-        xformerEQ.bands[0].gain = pw ? params.rumble / 100 * m * 1.2 : 0
-        speakerEQ.bands[0].gain = pw ? -(params.roomResonance / 100 * m) : 0
+        tubeWarmthEQ.bands[0].gain = pa ? params.saturation / 100 * m * 1.2 : 0
+        tubeAirEQ.bands[0].gain = pa ? -(params.hfRolloff / 100 * m * 0.35) : 0
+        microEQ.bands[0].gain = pa ? params.roomResonance / 100 * m * 0.6 : 0
+        xformerEQ.bands[0].gain = pw ? params.rumble / 100 * m * 0.6 : 0
+        speakerEQ.bands[0].gain = pw ? -(params.roomResonance / 100 * m * 0.5) : 0
     }
 
     func updateNoiseParams() {

@@ -123,9 +123,8 @@ struct EffectSectionsView: View {
                 EffectSlider(label: "rumble", sub: "motor & bearing", value: Binding(get: { engine.params.rumble }, set: { engine.params.rumble=$0; engine.updateNoiseParams() }))
                 EffectSlider(label: "pressed noise", sub: "manufacturing haze", value: Binding(get: { engine.params.pressedNoise }, set: { engine.params.pressedNoise=$0; engine.updateNoiseParams() }))
             }
-            EffectSection(title: "tonal character", badge: "4 controls", id: "tone", open: $open) {
+            EffectSection(title: "tonal character", badge: "3 controls", id: "tone", open: $open) {
                 EffectSlider(label: "hf rolloff", sub: "groove wear / treble loss", value: Binding(get: { engine.params.hfRolloff }, set: { engine.params.hfRolloff=$0; engine.updateVinylParams() }))
-                EffectSlider(label: "saturation", sub: "tube preamp warmth", value: Binding(get: { engine.params.saturation }, set: { engine.params.saturation=$0; engine.updateVinylParams() }))
                 EffectSlider(label: "riaa variance", sub: "eq curve imperfection", value: Binding(get: { engine.params.riaaVariance }, set: { engine.params.riaaVariance=$0; engine.updateVinylParams() }))
                 EffectSlider(label: "stereo width", sub: "0=mono / 100=full stereo", value: Binding(get: { engine.params.stereoWidth }, set: { engine.params.stereoWidth=$0; engine.updateVinylParams() }))
             }
