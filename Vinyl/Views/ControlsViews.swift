@@ -34,7 +34,7 @@ struct SampleLibraryView: View {
 
 struct PresetsView: View {
     @ObservedObject var engine: VinylEngine
-    let columns = [GridItem(.adaptive(minimum: 110), spacing: 5)]
+    let columns = [GridItem(.adaptive(minimum: 90), spacing: 5)]
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             SectionLabel("presets")

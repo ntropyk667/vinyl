@@ -5,28 +5,18 @@ struct ContentView: View {
     @State private var showFilePicker = false
 
     var body: some View {
-        ZStack {
-            Color(hex: "0e0e0e").ignoresSafeArea()
-            ScrollView {
-                VStack(spacing: 0) {
-                    HeaderView()
-                    HStack(alignment: .top, spacing: 20) {
-                        VStack(spacing: 12) {
-                            RecordView(engine: engine, onDropTap: { showFilePicker = true })
-                            TubeControlsView(engine: engine)
-                            BypassButton(engine: engine)
-                        }
-                        .frame(width: 200)
-                        VStack(spacing: 10) {
-                            TransportView(engine: engine)
-                            SampleLibraryView(engine: engine)
-                            PresetsView(engine: engine)
-                            MasterControlsView(engine: engine)
-                            EffectSectionsView(engine: engine)
+        GeometryReader { geo in
+            ZStack {
+                Color(hex: "0e0e0e").ignoresSafeArea()
+                ScrollView {
+                    VStack(spacing: 0) {
+                        HeaderView()
+                        if geo.size.width < 600 {
+                            portraitContent
+                        } else {
+                            landscapeContent
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 40)
                 }
             }
         }
@@ -41,6 +31,47 @@ struct ContentView: View {
                 engine.loadTrack(france)
             }
         }
+    }
+
+    // Portrait: tube controls + presets side-by-side, everything else full-width
+    private var portraitContent: some View {
+        VStack(spacing: 10) {
+            TransportView(engine: engine)
+            HStack(alignment: .top, spacing: 12) {
+                TubeControlsView(engine: engine)
+                    .frame(width: 130)
+                VStack(spacing: 8) {
+                    SampleLibraryView(engine: engine)
+                    PresetsView(engine: engine)
+                }
+            }
+            BypassButton(engine: engine)
+            MasterControlsView(engine: engine)
+            EffectSectionsView(engine: engine)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 40)
+    }
+
+    // Landscape / iPad: original side-by-side with record view
+    private var landscapeContent: some View {
+        HStack(alignment: .top, spacing: 20) {
+            VStack(spacing: 12) {
+                RecordView(engine: engine, onDropTap: { showFilePicker = true })
+                TubeControlsView(engine: engine)
+                BypassButton(engine: engine)
+            }
+            .frame(width: 200)
+            VStack(spacing: 10) {
+                TransportView(engine: engine)
+                SampleLibraryView(engine: engine)
+                PresetsView(engine: engine)
+                MasterControlsView(engine: engine)
+                EffectSectionsView(engine: engine)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 40)
     }
 }
 
