@@ -14,12 +14,19 @@ class VinylEngine: ObservableObject {
     @Published var currentPreset: VinylPreset = .electronic
     @Published var displayTitle: String = "no track loaded"
 
+    // Mode: library vs converter (mutually exclusive)
+    enum ActiveMode { case library, converter }
+    @Published var activeMode: ActiveMode = .library
+    var lastSampleTrack: SampleTrack?
+
     // Converter state
     @Published var isConverting = false
     @Published var convertProgress: Double = 0
     @Published var convertedFileURL: URL?
     @Published var isPreviewing = false
     @Published var converterSourceLoaded = false
+    @Published var convertFailed = false
+    @Published var converterSourceName: String = ""
     private var converterBuffer: AVAudioPCMBuffer?
     private var previewPlayer: AVAudioPlayer?
 
@@ -217,6 +224,8 @@ class VinylEngine: ObservableObject {
         // FIX: use stop() not pause(), and never detach/reattach the node
         if isPlaying { stopPlayback() } else { playerNode.stop() }
         currentTrack = track
+        lastSampleTrack = track
+        activeMode = .library
         displayTitle = track.title
         pausedPosition = 0
         currentTime = 0
@@ -248,6 +257,7 @@ class VinylEngine: ObservableObject {
         // FIX: use stop() not pause(), and never detach/reattach the node
         if isPlaying { stopPlayback() } else { playerNode.stop() }
         currentTrack = nil
+        activeMode = .converter
         displayTitle = url.deletingPathExtension().lastPathComponent
         pausedPosition = 0
         currentTime = 0
@@ -515,6 +525,40 @@ class VinylEngine: ObservableObject {
         if isPlaying { seek(to: currentTime) }
     }
 
+    // MARK: - Mode Switching
+
+    func switchToLibrary() {
+        if activeMode == .library { return }
+        if isPreviewing { stopPreview() }
+        if isPlaying { stopPlayback() }
+        activeMode = .library
+        let track = lastSampleTrack ?? SampleTrack.library.first(where: { $0.id == "france" }) ?? SampleTrack.library[0]
+        loadTrack(track)
+    }
+
+    func switchToConverter() {
+        if activeMode == .converter { return }
+        if isPlaying { stopPlayback() }
+        activeMode = .converter
+        currentTrack = nil
+        pausedPosition = 0
+        currentTime = 0
+        if let url = convertedFileURL {
+            // Converted file exists — load it for preview
+            displayTitle = url.deletingPathExtension().lastPathComponent
+            loadConvertedIntoPlayer(url: url)
+        } else if let buf = converterBuffer {
+            // Source loaded but not yet converted — reload for auditioning
+            displayTitle = converterSourceName
+            audioBuffer = buf
+            let sr = buf.format.sampleRate
+            duration = Double(buf.frameLength) / sr
+        } else {
+            displayTitle = "no file loaded"
+            duration = 0
+        }
+    }
+
     // MARK: - Converter
 
     func loadForConversion(url: URL) {
@@ -522,7 +566,10 @@ class VinylEngine: ObservableObject {
         let wasPlaying = isPlaying
         if isPlaying { stopPlayback() } else { playerNode.stop() }
         currentTrack = nil
-        displayTitle = url.deletingPathExtension().lastPathComponent
+        activeMode = .converter
+        converterSourceName = url.deletingPathExtension().lastPathComponent
+        displayTitle = converterSourceName
+        convertFailed = false
         pausedPosition = 0
         currentTime = 0
         do {
@@ -571,13 +618,17 @@ class VinylEngine: ObservableObject {
                     self.convertedFileURL = result
                     self.isConverting = false
                     self.convertProgress = 1.0
+                    self.convertFailed = false
                     self.displayTitle = result.deletingPathExtension().lastPathComponent
+                    // Load converted WAV into main player for preview with transport controls
+                    self.loadConvertedIntoPlayer(url: result)
                 }
             } catch {
                 print("Offline render error: \(error)")
                 DispatchQueue.main.async {
                     self.isConverting = false
                     self.convertProgress = 0
+                    self.convertFailed = true
                 }
             }
         }
@@ -672,7 +723,8 @@ class VinylEngine: ObservableObject {
         // Render in chunks, writing directly to output file
         let outputFrames = prebaked.frameLength
         let tempDir = FileManager.default.temporaryDirectory
-        let filename = "Vinyl_\(Int(Date().timeIntervalSince1970)).wav"
+        let baseName = converterSourceName.isEmpty ? "Vinyl_\(Int(Date().timeIntervalSince1970))" : "\(converterSourceName)_vinyl"
+        let filename = "\(baseName).wav"
         let outputURL = tempDir.appendingPathComponent(filename)
 
         let outputFile = try AVAudioFile(forWriting: outputURL, settings: [
@@ -779,22 +831,49 @@ class VinylEngine: ObservableObject {
         return output
     }
 
-    func previewConverted() {
-        guard let url = convertedFileURL else { return }
-        // Stop main playback so preview plays clean (no double effects)
-        if isPlaying { stopPlayback() }
+    /// Load the converted WAV into the main player buffer (no effects applied)
+    private func loadConvertedIntoPlayer(url: URL) {
+        if isPlaying { stopPlayback() } else { playerNode.stop() }
+        pausedPosition = 0
+        currentTime = 0
         do {
-            previewPlayer = try AVAudioPlayer(contentsOf: url)
-            previewPlayer?.delegate = nil
-            previewPlayer?.play()
-            isPreviewing = true
-        } catch { print("Preview error: \(error)") }
+            let file = try AVAudioFile(forReading: url)
+            duration = Double(file.length) / file.fileFormat.sampleRate
+            let frameCount = AVAudioFrameCount(file.length)
+            let rawBuffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frameCount)
+            guard let ab = rawBuffer else { return }
+            try file.read(into: ab)
+            audioFile = file
+            audioBuffer = toStereo(ab)
+        } catch { print("Load converted error: \(error)") }
+    }
+
+    private var bypassBeforePreview = false
+
+    func previewConverted() {
+        guard audioBuffer != nil, convertedFileURL != nil else { return }
+        // Enable bypass so the already-rendered WAV plays clean through the player
+        bypassBeforePreview = isBypassed
+        if !isBypassed {
+            isBypassed = true
+            updateVinylParams()
+            updateAmpParams()
+            scheduleNoiseUpdate()
+        }
+        isPreviewing = true
+        pausedPosition = 0
+        currentTime = 0
+        startPlayback()
     }
 
     func stopPreview() {
-        previewPlayer?.stop()
-        previewPlayer = nil
+        if isPlaying { stopPlayback() }
         isPreviewing = false
+        // Restore bypass state
+        isBypassed = bypassBeforePreview
+        updateVinylParams()
+        updateAmpParams()
+        scheduleNoiseUpdate()
     }
 
     func clearConverter() {
@@ -803,5 +882,7 @@ class VinylEngine: ObservableObject {
         convertedFileURL = nil
         convertProgress = 0
         converterSourceLoaded = false
+        convertFailed = false
+        converterSourceName = ""
     }
 }

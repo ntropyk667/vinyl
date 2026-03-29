@@ -18,7 +18,7 @@ struct TransportView: View {
                 if engine.isConverting {
                     Text("converting \(Int(engine.convertProgress * 100))%")
                         .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(Color(hex: "cc3333"))
+                        .foregroundColor(Color(hex: "5a9a78"))
                 } else {
                     Text("\(formatTime(displayTime)) / \(formatTime(engine.duration))")
                         .font(.system(size: 11, design: .monospaced))
@@ -27,10 +27,10 @@ struct TransportView: View {
             }
             GeometryReader { geo in
                 if engine.isConverting {
-                    // Red progress bar during conversion
+                    // Green progress bar during conversion
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 2).fill(Color.white.opacity(0.08)).frame(height: 3)
-                        RoundedRectangle(cornerRadius: 2).fill(Color(hex: "cc3333"))
+                        RoundedRectangle(cornerRadius: 2).fill(Color(hex: "5a9a78"))
                             .frame(width: max(0, engine.convertProgress * geo.size.width), height: 3)
                     }
                     .frame(height: 18)
@@ -56,7 +56,7 @@ struct TransportView: View {
             .frame(height: 18)
             HStack(spacing: 12) {
                 TransportButton(icon: "backward.end.fill", size: 14) { engine.restart() }
-                TransportButton(icon: "backward.fill", size: 14) { handlePrevious() }
+                TransportButton(icon: "gobackward.10", size: 14) { engine.seek(to: max(0, engine.currentTime - 10)) }
                 Button(action: { engine.togglePlayback() }) {
                     ZStack {
                         Circle().stroke(Color.white.opacity(0.14), lineWidth: 0.5).frame(width: 38, height: 38)
@@ -65,12 +65,17 @@ struct TransportView: View {
                             .offset(x: engine.isPlaying ? 0 : 1)
                     }
                 }
-                TransportButton(icon: "forward.fill", size: 14) { handleNext() }
-                TransportButton(icon: "repeat", size: 14, isActive: true) {}
+                TransportButton(icon: "goforward.10", size: 14) { engine.seek(to: min(engine.duration - 0.1, engine.currentTime + 10)) }
+                Button(action: { handleNext() }) {
+                    Image(systemName: "forward.end.fill").font(.system(size: 14))
+                        .foregroundColor(engine.activeMode == .library ? Color(hex: "9a9690") : Color(hex: "3a3836"))
+                        .frame(width: 32, height: 32)
+                }
+                .disabled(engine.activeMode != .library)
             }
             .frame(maxWidth: .infinity)
-            .disabled(engine.isPreviewing)
-            .opacity(engine.isPreviewing ? 0.4 : 1.0)
+            .disabled(engine.isConverting)
+            .opacity(engine.isConverting ? 0.4 : 1.0)
         }
         .padding(12)
         .background(Color(hex: "161616"))
@@ -83,17 +88,8 @@ struct TransportView: View {
         return displayTime / engine.duration
     }
 
-    private func handlePrevious() {
-        if engine.currentTime > 5 {
-            engine.restart()
-        } else {
-            let idx = SampleTrack.library.firstIndex(where: { $0.id == engine.currentTrack?.id }) ?? 0
-            let prev = SampleTrack.library[(idx - 1 + SampleTrack.library.count) % SampleTrack.library.count]
-            engine.loadTrack(prev)
-        }
-    }
-
     private func handleNext() {
+        guard engine.activeMode == .library else { return }
         let idx = SampleTrack.library.firstIndex(where: { $0.id == engine.currentTrack?.id }) ?? 0
         let next = SampleTrack.library[(idx + 1) % SampleTrack.library.count]
         engine.loadTrack(next)

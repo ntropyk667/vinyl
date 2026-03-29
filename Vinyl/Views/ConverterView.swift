@@ -5,16 +5,11 @@ struct ConverterView: View {
     @ObservedObject var engine: VinylEngine
     @State private var showLoadPicker = false
     @State private var showShareSheet = false
-    @State private var loadedFileName: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             SectionLabel("converter")
-            if let url = engine.convertedFileURL {
-                Text(url.lastPathComponent).font(.system(size: 10, design: .monospaced)).foregroundColor(Color(hex: "c8b89a")).lineLimit(1)
-            } else if let name = loadedFileName {
-                Text(name).font(.system(size: 10, design: .monospaced)).foregroundColor(Color(hex: "9a9690")).lineLimit(1)
-            }
+            statusLine
             HStack(spacing: 6) {
                 converterButton(label: "load", icon: "doc.badge.plus", enabled: !engine.isConverting && !engine.isPreviewing) {
                     showLoadPicker = true
@@ -35,7 +30,6 @@ struct ConverterView: View {
         }
         .sheet(isPresented: $showLoadPicker) {
             DocumentPickerView { url in
-                loadedFileName = url.lastPathComponent
                 engine.loadForConversion(url: url)
                 showLoadPicker = false
             }
@@ -45,6 +39,36 @@ struct ConverterView: View {
                 ShareSheet(activityItems: [url])
             }
         }
+    }
+
+    @ViewBuilder
+    private var statusLine: some View {
+        if engine.convertFailed {
+            statusText("\(engine.converterSourceName)", instruction: "conversion failed, try again", color: Color(hex: "cc3333"))
+        } else if engine.isPreviewing {
+            if let url = engine.convertedFileURL {
+                statusText(url.lastPathComponent, instruction: "previewing, stop before saving", color: Color(hex: "c8b89a"))
+            }
+        } else if let url = engine.convertedFileURL {
+            statusText(url.lastPathComponent, instruction: "build successful, preview before saving", color: Color(hex: "5a9a78"))
+        } else if engine.isConverting {
+            statusText(engine.converterSourceName, instruction: "converting...", color: Color(hex: "5a9a78"))
+        } else if engine.converterSourceLoaded {
+            statusText(engine.converterSourceName, instruction: "loaded, choose preset or customize", color: Color(hex: "9a9690"))
+        } else {
+            EmptyView()
+        }
+    }
+
+    private func statusText(_ name: String, instruction: String, color: Color) -> some View {
+        (Text(name)
+            .font(.system(size: 10, weight: .medium, design: .monospaced))
+            .foregroundColor(color)
+        + Text("  \(instruction)")
+            .font(.system(size: 10, design: .monospaced))
+            .foregroundColor(Color(hex: "5a5856")))
+        .lineLimit(2)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func converterButton(label: String, icon: String, enabled: Bool, action: @escaping () -> Void) -> some View {
@@ -67,7 +91,7 @@ struct ConverterView: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 2).fill(Color.white.opacity(0.08)).frame(height: 3)
-                RoundedRectangle(cornerRadius: 2).fill(Color(hex: "cc3333"))
+                RoundedRectangle(cornerRadius: 2).fill(Color(hex: "5a9a78"))
                     .frame(width: max(0, engine.convertProgress * geo.size.width), height: 3)
             }
         }

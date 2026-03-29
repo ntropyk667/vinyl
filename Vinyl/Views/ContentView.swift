@@ -37,13 +37,26 @@ struct ContentView: View {
         }
     }
 
+    private var isConverterMode: Bool { engine.activeMode == .converter }
+
     // Portrait: transport + converter + library full-width, then tubes/bypass | presets side-by-side
     private var portraitContent: some View {
         VStack(spacing: 10) {
             TransportView(engine: engine)
+            // Converter section
             ConverterView(engine: engine)
+                .disabled(!isConverterMode)
+                .opacity(!isConverterMode ? 0.35 : 1.0)
+                .contentShape(Rectangle())
+                .onTapGesture { if !isConverterMode { engine.switchToConverter() } }
+            // Sample library section
+            SampleLibraryView(engine: engine)
+                .disabled(isConverterMode)
+                .opacity(isConverterMode ? 0.35 : 1.0)
+                .contentShape(Rectangle())
+                .onTapGesture { if isConverterMode { engine.switchToLibrary() } }
+            // Controls — disabled during preview
             Group {
-                SampleLibraryView(engine: engine)
                 HStack(alignment: .top, spacing: 12) {
                     VStack(spacing: 8) {
                         TubeControlsView(engine: engine)
@@ -104,9 +117,20 @@ struct ContentView: View {
             .opacity(engine.isPreviewing ? 0.4 : 1.0)
             VStack(spacing: 10) {
                 TransportView(engine: engine)
+                // Converter section
                 ConverterView(engine: engine)
+                    .disabled(!isConverterMode)
+                    .opacity(!isConverterMode ? 0.35 : 1.0)
+                    .contentShape(Rectangle())
+                    .onTapGesture { if !isConverterMode { engine.switchToConverter() } }
+                // Sample library section
+                SampleLibraryView(engine: engine)
+                    .disabled(isConverterMode)
+                    .opacity(isConverterMode ? 0.35 : 1.0)
+                    .contentShape(Rectangle())
+                    .onTapGesture { if isConverterMode { engine.switchToLibrary() } }
+                // Controls
                 Group {
-                    SampleLibraryView(engine: engine)
                     PresetsView(engine: engine)
                     MasterControlsView(engine: engine)
                     EffectSectionsView(engine: engine)
