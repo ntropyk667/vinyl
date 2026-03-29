@@ -6,6 +6,7 @@ class VinylEngine: ObservableObject {
     @Published var currentTime: Double = 0
     @Published var duration: Double = 0
     @Published var isBypassed = false
+    @Published var monoMode = false
     @Published var preampOn = true
     @Published var powerampOn = true
     @Published var params = VinylParameters()
@@ -115,6 +116,22 @@ class VinylEngine: ObservableObject {
         generateNoise()
     }
 
+    // Podcast files are often mono — duplicate the channel to stereo so the
+    // buffer format always matches the stereo engine connection.
+    private func toStereo(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer {
+        guard buffer.format.channelCount == 1 else { return buffer }
+        let stereoFmt = AVAudioFormat(standardFormatWithSampleRate: buffer.format.sampleRate, channels: 2)!
+        guard let out = AVAudioPCMBuffer(pcmFormat: stereoFmt, frameCapacity: buffer.frameLength) else { return buffer }
+        out.frameLength = buffer.frameLength
+        if let src = buffer.floatChannelData?[0],
+           let dstL = out.floatChannelData?[0],
+           let dstR = out.floatChannelData?[1] {
+            memcpy(dstL, src, Int(buffer.frameLength) * MemoryLayout<Float>.size)
+            memcpy(dstR, src, Int(buffer.frameLength) * MemoryLayout<Float>.size)
+        }
+        return out
+    }
+
     private func makeEQ(type: AVAudioUnitEQFilterType, freq: Float, bw: Float = 1.0, gain: Float = 0) -> AVAudioUnitEQ {
         let eq = AVAudioUnitEQ(numberOfBands: 1)
         eq.bands[0].filterType = type
@@ -201,9 +218,10 @@ class VinylEngine: ObservableObject {
             guard let af = audioFile else { return }
             duration = Double(af.length) / af.fileFormat.sampleRate
             let frameCount = AVAudioFrameCount(af.length)
-            audioBuffer = AVAudioPCMBuffer(pcmFormat: af.processingFormat, frameCapacity: frameCount)
-            guard let ab = audioBuffer else { return }
+            let rawBuffer = AVAudioPCMBuffer(pcmFormat: af.processingFormat, frameCapacity: frameCount)
+            guard let ab = rawBuffer else { return }
             try af.read(into: ab)
+            audioBuffer = toStereo(ab)
             if let preset = VinylPreset.all.first(where: { $0.id == track.defaultPresetID }) { applyPreset(preset) }
             if wasPlaying {
                 // Small delay ensures the engine has fully settled after stop() before rescheduling
@@ -225,9 +243,10 @@ class VinylEngine: ObservableObject {
             guard let af = audioFile else { return }
             duration = Double(af.length) / af.fileFormat.sampleRate
             let frameCount = AVAudioFrameCount(af.length)
-            audioBuffer = AVAudioPCMBuffer(pcmFormat: af.processingFormat, frameCapacity: frameCount)
-            guard let ab = audioBuffer else { return }
+            let rawBuffer = AVAudioPCMBuffer(pcmFormat: af.processingFormat, frameCapacity: frameCount)
+            guard let ab = rawBuffer else { return }
             try af.read(into: ab)
+            audioBuffer = toStereo(ab)
             applyPreset(.audiophile)
             preampOn = false
             powerampOn = false
@@ -257,6 +276,15 @@ class VinylEngine: ObservableObject {
             guard let src = buffer.floatChannelData?[ch],
                   let dst = sub.floatChannelData?[ch] else { continue }
             memcpy(dst, src.advanced(by: Int(startFrame)), Int(frameCount) * MemoryLayout<Float>.size)
+        }
+        // Mix L+R to mono when mono mode is on
+        if monoMode, fmt.channelCount == 2,
+           let l = sub.floatChannelData?[0],
+           let r = sub.floatChannelData?[1] {
+            for i in 0..<Int(frameCount) {
+                let m = (l[i] + r[i]) * 0.5
+                l[i] = m; r[i] = m
+            }
         }
         // FIX: guard against stale completion callbacks fired after stopPlayback()
         playerNode.scheduleBuffer(sub, at: nil, options: []) { [weak self] in
@@ -301,7 +329,13 @@ class VinylEngine: ObservableObject {
         if isPlaying { stopPlayback() } else { playerNode.stop() }
         pausedPosition = max(0, min(time, duration - 0.1))
         currentTime = pausedPosition
-        if was { startPlayback() }
+        if was {
+            // Same 50ms settle delay as loadTrack — ensures stop() has fully
+            // flushed before we reschedule a new buffer from the seek position.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.startPlayback()
+            }
+        }
     }
 
     func restart() { seek(to: 0) }
@@ -361,9 +395,11 @@ class VinylEngine: ObservableObject {
     func applyPreset(_ preset: VinylPreset) {
         currentPreset = preset
         params = preset.params
+        monoMode = (preset.id == "78rpm")
         updateVinylParams()
         updateAmpParams()
         scheduleNoiseUpdate()
+        if isPlaying { seek(to: currentTime) }
     }
 
     func updateAllParams() {
@@ -416,10 +452,28 @@ class VinylEngine: ObservableObject {
         cracklePlayer.volume = active ? Float((0.08 + Double(w) * 0.55) * Double(params.crackle) / 100 * Double(m)) * 3 : 0
     }
 
+    private var monoModeBeforeBypass = false
+
     func toggleBypass() {
-        isBypassed.toggle()
+        if isBypassed {
+            // Restoring: bring mono back to what it was before bypass
+            isBypassed = false
+            monoMode = monoModeBeforeBypass
+        } else {
+            // Bypassing: save mono state then turn everything off
+            monoModeBeforeBypass = monoMode
+            monoMode = false
+            isBypassed = true
+        }
         updateVinylParams()
         updateAmpParams()
         scheduleNoiseUpdate()
+        if isPlaying { seek(to: currentTime) }
+    }
+
+    func toggleMono() {
+        monoMode.toggle()
+        // Re-seek to current position so the mono mix applies immediately
+        if isPlaying { seek(to: currentTime) }
     }
 }

@@ -55,5 +55,7 @@ extension SampleTrack {
         SampleTrack(id:"easiness", title:"Easiness", artist:"Dee Yan-Key", genre:"jazz / swing", filename:"easiness", defaultPresetID:"jazz"),
         SampleTrack(id:"neon", title:"A Neon Flesh", artist:"Kai Engel", genre:"ambient piano", filename:"a_neon_flesh", defaultPresetID:"fatigue"),
         SampleTrack(id:"srv", title:"not SRV", artist:"unknown", genre:"blues / guitar", filename:"not_srv", defaultPresetID:"needledrop"),
+        SampleTrack(id:"keller", title:"Jim Keller: Moore's Law", artist:"Lex Fridman", genre:"podcast", filename:"lex_fridman_jim_keller_2019", defaultPresetID:"podcast"),
+        SampleTrack(id:"sagan", title:"Pale Blue Dot", artist:"Carl Sagan", genre:"podcast", filename:"Carl Sagans - Pale Blue Dot", defaultPresetID:"podcast"),
     ]
 }

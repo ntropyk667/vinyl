@@ -27,7 +27,7 @@ struct TransportView: View {
                         .offset(x: max(0, progress * geo.size.width - 6)).opacity(isSeeking ? 1 : 0)
                 }
                 .frame(height: 18).contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance: 0)
+                .highPriorityGesture(DragGesture(minimumDistance: 0)
                     .onChanged { val in
                         isSeeking = true
                         seekValue = max(0, min(1, val.location.x / geo.size.width)) * engine.duration

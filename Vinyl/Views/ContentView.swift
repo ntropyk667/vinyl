@@ -33,24 +33,52 @@ struct ContentView: View {
         }
     }
 
-    // Portrait: tube controls + presets side-by-side, everything else full-width
+    // Portrait: transport + library full-width, then tubes/bypass | presets side-by-side
     private var portraitContent: some View {
         VStack(spacing: 10) {
             TransportView(engine: engine)
+            SampleLibraryView(engine: engine)
             HStack(alignment: .top, spacing: 12) {
-                TubeControlsView(engine: engine)
-                    .frame(width: 130)
                 VStack(spacing: 8) {
-                    SampleLibraryView(engine: engine)
-                    PresetsView(engine: engine)
+                    TubeControlsView(engine: engine)
+                    portraitBypass
                 }
+                .frame(width: 130)
+                PresetsView(engine: engine)
             }
-            BypassButton(engine: engine)
             MasterControlsView(engine: engine)
             EffectSectionsView(engine: engine)
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 40)
+    }
+
+    // Compact vertical bypass + mono for the narrow left column in portrait
+    private var portraitBypass: some View {
+        VStack(spacing: 5) {
+            Button(action: { engine.toggleBypass() }) {
+                Text(engine.isBypassed ? "enable effects" : "bypass effects")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(engine.isBypassed ? Color(hex: "5a5856") : Color(hex: "9a9690"))
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .frame(maxWidth: .infinity)
+                    .background(Color(hex: "161616"))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.14), lineWidth: 0.5))
+                    .cornerRadius(6)
+            }
+            HStack(spacing: 5) {
+                Circle().fill(engine.isBypassed ? Color(hex: "5a5856") : Color(hex: "5a9a78")).frame(width: 6, height: 6)
+                Text(engine.isBypassed ? "bypassed" : "vinyl on")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(Color(hex: "5a5856"))
+            }
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .frame(maxWidth: .infinity)
+            .background(Color(hex: "161616"))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08), lineWidth: 0.5))
+            .cornerRadius(6)
+            StereoMonoToggle(engine: engine)
+        }
     }
 
     // Landscape / iPad: original side-by-side with record view
@@ -60,6 +88,7 @@ struct ContentView: View {
                 RecordView(engine: engine, onDropTap: { showFilePicker = true })
                 TubeControlsView(engine: engine)
                 BypassButton(engine: engine)
+                StereoMonoToggle(engine: engine)
             }
             .frame(width: 200)
             VStack(spacing: 10) {
@@ -108,6 +137,29 @@ struct BypassButton: View {
             .background(Color(hex: "161616"))
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08), lineWidth: 0.5))
             .cornerRadius(6)
+        }
+    }
+}
+
+struct StereoMonoToggle: View {
+    @ObservedObject var engine: VinylEngine
+    var body: some View {
+        HStack(spacing: 4) {
+            modeButton(label: "stereo", active: !engine.monoMode) { engine.monoMode = false; if engine.isPlaying { engine.seek(to: engine.currentTime) } }
+            modeButton(label: "mono",   active:  engine.monoMode) { engine.monoMode = true;  if engine.isPlaying { engine.seek(to: engine.currentTime) } }
+        }
+    }
+
+    private func modeButton(label: String, active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundColor(active ? Color(hex: "c8b89a") : Color(hex: "5a5856"))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(active ? Color(hex: "1e1a14") : Color(hex: "161616"))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(active ? Color(hex: "c8b89a").opacity(0.4) : Color.white.opacity(0.08), lineWidth: 0.5))
+                .cornerRadius(6)
         }
     }
 }

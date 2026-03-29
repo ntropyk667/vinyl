@@ -4,10 +4,10 @@ struct TubeControlsView: View {
     @ObservedObject var engine: VinylEngine
     var body: some View {
         HStack(spacing: 24) {
-            TubeButton(label: "preamp", isOn: engine.preampOn) {
+            TubeButton(label: "preamp", isOn: engine.preampOn && !engine.isBypassed) {
                 engine.preampOn.toggle(); engine.updateAmpParams()
             }
-            TubeButton(label: "power amp", isOn: engine.powerampOn) {
+            TubeButton(label: "power amp", isOn: engine.powerampOn && !engine.isBypassed) {
                 engine.powerampOn.toggle(); engine.updateAmpParams()
             }
         }
