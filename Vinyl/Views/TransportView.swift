@@ -10,32 +10,48 @@ struct TransportView: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack {
-                Text(engine.currentTrack?.title ?? "no track loaded")
+                Text(engine.displayTitle)
                     .font(.custom("Georgia", size: 15))
                     .foregroundColor(Color(hex: "e8e6e0"))
                     .lineLimit(1)
                 Spacer()
-                Text("\(formatTime(displayTime)) / \(formatTime(engine.duration))")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(Color(hex: "5a5856"))
+                if engine.isConverting {
+                    Text("converting \(Int(engine.convertProgress * 100))%")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(Color(hex: "cc3333"))
+                } else {
+                    Text("\(formatTime(displayTime)) / \(formatTime(engine.duration))")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(Color(hex: "5a5856"))
+                }
             }
             GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2).fill(Color.white.opacity(0.08)).frame(height: 3)
-                    RoundedRectangle(cornerRadius: 2).fill(Color(hex: "c8b89a")).frame(width: progress * geo.size.width, height: 3)
-                    Circle().fill(Color(hex: "c8b89a")).frame(width: 12, height: 12)
-                        .offset(x: max(0, progress * geo.size.width - 6)).opacity(isSeeking ? 1 : 0)
-                }
-                .frame(height: 18).contentShape(Rectangle())
-                .highPriorityGesture(DragGesture(minimumDistance: 0)
-                    .onChanged { val in
-                        isSeeking = true
-                        seekValue = max(0, min(1, val.location.x / geo.size.width)) * engine.duration
+                if engine.isConverting {
+                    // Red progress bar during conversion
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2).fill(Color.white.opacity(0.08)).frame(height: 3)
+                        RoundedRectangle(cornerRadius: 2).fill(Color(hex: "cc3333"))
+                            .frame(width: max(0, engine.convertProgress * geo.size.width), height: 3)
                     }
-                    .onEnded { val in
-                        engine.seek(to: max(0, min(1, val.location.x / geo.size.width)) * engine.duration)
-                        isSeeking = false
-                    })
+                    .frame(height: 18)
+                } else {
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2).fill(Color.white.opacity(0.08)).frame(height: 3)
+                        RoundedRectangle(cornerRadius: 2).fill(Color(hex: "c8b89a")).frame(width: progress * geo.size.width, height: 3)
+                        Circle().fill(Color(hex: "c8b89a")).frame(width: 12, height: 12)
+                            .offset(x: max(0, progress * geo.size.width - 6)).opacity(isSeeking ? 1 : 0)
+                    }
+                    .frame(height: 18).contentShape(Rectangle())
+                    .highPriorityGesture(DragGesture(minimumDistance: 0)
+                        .onChanged { val in
+                            isSeeking = true
+                            seekValue = max(0, min(1, val.location.x / geo.size.width)) * engine.duration
+                        }
+                        .onEnded { val in
+                            engine.seek(to: max(0, min(1, val.location.x / geo.size.width)) * engine.duration)
+                            isSeeking = false
+                        })
+                }
             }
             .frame(height: 18)
             HStack(spacing: 12) {
@@ -53,6 +69,8 @@ struct TransportView: View {
                 TransportButton(icon: "repeat", size: 14, isActive: true) {}
             }
             .frame(maxWidth: .infinity)
+            .disabled(engine.isPreviewing)
+            .opacity(engine.isPreviewing ? 0.4 : 1.0)
         }
         .padding(12)
         .background(Color(hex: "161616"))

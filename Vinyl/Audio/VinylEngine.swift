@@ -12,6 +12,16 @@ class VinylEngine: ObservableObject {
     @Published var params = VinylParameters()
     @Published var currentTrack: SampleTrack?
     @Published var currentPreset: VinylPreset = .electronic
+    @Published var displayTitle: String = "no track loaded"
+
+    // Converter state
+    @Published var isConverting = false
+    @Published var convertProgress: Double = 0
+    @Published var convertedFileURL: URL?
+    @Published var isPreviewing = false
+    @Published var converterSourceLoaded = false
+    private var converterBuffer: AVAudioPCMBuffer?
+    private var previewPlayer: AVAudioPlayer?
 
     private let engine = AVAudioEngine()
     private var playerNode = AVAudioPlayerNode()
@@ -207,6 +217,7 @@ class VinylEngine: ObservableObject {
         // FIX: use stop() not pause(), and never detach/reattach the node
         if isPlaying { stopPlayback() } else { playerNode.stop() }
         currentTrack = track
+        displayTitle = track.title
         pausedPosition = 0
         currentTime = 0
         let url = Bundle.main.url(forResource: track.filename, withExtension: "mp3")
@@ -236,6 +247,8 @@ class VinylEngine: ObservableObject {
         let wasPlaying = isPlaying
         // FIX: use stop() not pause(), and never detach/reattach the node
         if isPlaying { stopPlayback() } else { playerNode.stop() }
+        currentTrack = nil
+        displayTitle = url.deletingPathExtension().lastPathComponent
         pausedPosition = 0
         currentTime = 0
         do {
@@ -500,5 +513,295 @@ class VinylEngine: ObservableObject {
         monoMode.toggle()
         // Re-seek to current position so the mono mix applies immediately
         if isPlaying { seek(to: currentTime) }
+    }
+
+    // MARK: - Converter
+
+    func loadForConversion(url: URL) {
+        // Read once while security scope is active, then share buffer
+        let wasPlaying = isPlaying
+        if isPlaying { stopPlayback() } else { playerNode.stop() }
+        currentTrack = nil
+        displayTitle = url.deletingPathExtension().lastPathComponent
+        pausedPosition = 0
+        currentTime = 0
+        do {
+            let file = try AVAudioFile(forReading: url)
+            let sr = file.fileFormat.sampleRate
+            let frameCount = AVAudioFrameCount(file.length)
+            duration = Double(file.length) / sr
+            let rawBuffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frameCount)
+            guard let ab = rawBuffer else { return }
+            try file.read(into: ab)
+            let stereo = toStereo(ab)
+            // Set both main player buffer and converter buffer from single read
+            audioFile = file
+            audioBuffer = stereo
+            converterBuffer = stereo
+            applyPreset(.audiophile)
+            preampOn = true
+            powerampOn = true
+            updateAmpParams()
+            if wasPlaying {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                    self?.startPlayback()
+                }
+            }
+        } catch { print("Converter load error: \(error)") }
+        convertedFileURL = nil
+        converterSourceLoaded = true
+        isPreviewing = false
+        previewPlayer?.stop()
+        previewPlayer = nil
+    }
+
+    var hasConvertedFile: Bool { convertedFileURL != nil }
+
+    func performOfflineRender() {
+        guard let sourceBuffer = converterBuffer else { return }
+        if isPlaying { stopPlayback() }
+        isConverting = true
+        convertProgress = 0
+        convertedFileURL = nil
+
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            do {
+                let result = try self.offlineRender(source: sourceBuffer)
+                DispatchQueue.main.async {
+                    self.convertedFileURL = result
+                    self.isConverting = false
+                    self.convertProgress = 1.0
+                    self.displayTitle = result.deletingPathExtension().lastPathComponent
+                }
+            } catch {
+                print("Offline render error: \(error)")
+                DispatchQueue.main.async {
+                    self.isConverting = false
+                    self.convertProgress = 0
+                }
+            }
+        }
+    }
+
+    private func offlineRender(source: AVAudioPCMBuffer) throws -> URL {
+        let sampleRate = source.format.sampleRate
+        let channels: AVAudioChannelCount = 2
+        let renderFmt = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: channels)!
+        let totalFrames = source.frameLength
+
+        // 1) Pre-resample source with wow/flutter rate curve baked in
+        let prebaked = prebakeWowFlutter(source: source, format: renderFmt)
+
+        // 2) Build offline engine with duplicate EQ chain
+        let offEngine = AVAudioEngine()
+        let offPlayer = AVAudioPlayerNode()
+        let offLP = makeEQ(type: .lowPass, freq: 18000)
+        let offHP = makeEQ(type: .highPass, freq: 28)
+        let offRIAA = makeEQ(type: .parametric, freq: 900, bw: 1.0, gain: 0)
+        let offRoom = makeEQ(type: .parametric, freq: 180, bw: 0.5, gain: 0)
+        let offSat = AVAudioUnitDistortion(); offSat.wetDryMix = 0
+        let offTubeWarmth = makeEQ(type: .parametric, freq: 200, bw: 1.0, gain: 0)
+        let offTubeAir = makeEQ(type: .highShelf, freq: 10000, gain: 0)
+        let offMicro = makeEQ(type: .parametric, freq: 220, bw: 0.2, gain: 0)
+        let offXformer = makeEQ(type: .lowShelf, freq: 120, gain: 0)
+        let offSpeaker = makeEQ(type: .parametric, freq: 2800, bw: 1.2, gain: 0)
+        let offMixer = AVAudioMixerNode()
+        let offHiss = AVAudioPlayerNode()
+        let offRumble = AVAudioPlayerNode()
+        let offCrackle = AVAudioPlayerNode()
+
+        let nodes: [AVAudioNode] = [offPlayer, offHP, offRIAA, offTubeWarmth, offTubeAir, offMicro, offXformer, offSpeaker, offSat, offLP, offRoom, offMixer, offHiss, offRumble, offCrackle]
+        nodes.forEach { offEngine.attach($0) }
+
+        offEngine.connect(offPlayer, to: offHP, format: renderFmt)
+        offEngine.connect(offHP, to: offRIAA, format: renderFmt)
+        offEngine.connect(offRIAA, to: offTubeWarmth, format: renderFmt)
+        offEngine.connect(offTubeWarmth, to: offTubeAir, format: renderFmt)
+        offEngine.connect(offTubeAir, to: offMicro, format: renderFmt)
+        offEngine.connect(offMicro, to: offXformer, format: renderFmt)
+        offEngine.connect(offXformer, to: offSpeaker, format: renderFmt)
+        offEngine.connect(offSpeaker, to: offSat, format: renderFmt)
+        offEngine.connect(offSat, to: offLP, format: renderFmt)
+        offEngine.connect(offLP, to: offRoom, format: renderFmt)
+        offEngine.connect(offRoom, to: offMixer, format: renderFmt)
+        offEngine.connect(offHiss, to: offMixer, format: renderFmt)
+        offEngine.connect(offRumble, to: offMixer, format: renderFmt)
+        offEngine.connect(offCrackle, to: offMixer, format: renderFmt)
+        offEngine.connect(offMixer, to: offEngine.mainMixerNode, format: renderFmt)
+
+        // Apply current EQ params to offline chain
+        let w = params.wear / 100
+        let m = params.masterIntensity / 100
+        if !isBypassed {
+            let cutoff = max(600.0, 18000.0 - Double(w) * 11000 - Double(params.hfRolloff) / 100 * Double(m) * 13000)
+            offLP.bands[0].frequency = Float(cutoff)
+            offRIAA.bands[0].gain = params.riaaVariance / 100 * m * 6 - 3
+            offRoom.bands[0].gain = params.roomResonance / 100 * m * 3
+            let pa = preampOn && !isBypassed
+            let pw = powerampOn && !isBypassed
+            offTubeWarmth.bands[0].gain = pa ? params.saturation / 100 * m * 1.2 : 0
+            offTubeAir.bands[0].gain = pa ? -(params.hfRolloff / 100 * m * 0.35) : 0
+            offMicro.bands[0].gain = pa ? params.roomResonance / 100 * m * 0.6 : 0
+            offXformer.bands[0].gain = pw ? params.rumble / 100 * m * 0.6 : 0
+            offSpeaker.bands[0].gain = pw ? -(params.roomResonance / 100 * m * 0.5) : 0
+        }
+
+        // Noise volumes
+        let active = !isBypassed
+        offHiss.volume = active ? Float((0.01 + Double(w) * 0.08) * Double(params.hiss) / 100 * Double(m)) * 2 : 0
+        offRumble.volume = active ? Float((0.02 + Double(w) * 0.22) * Double(params.rumble) / 100 * Double(m)) * 1.5 : 0
+        offCrackle.volume = active ? Float((0.08 + Double(w) * 0.55) * Double(params.crackle) / 100 * Double(m)) * 1.0 : 0
+
+        // Enable offline rendering
+        try offEngine.enableManualRenderingMode(.offline, format: renderFmt, maximumFrameCount: 4096)
+        try offEngine.start()
+
+        // Schedule source and noise
+        offPlayer.scheduleBuffer(prebaked, at: nil, options: [])
+        offPlayer.play()
+
+        // Generate noise buffers for offline
+        let dur = Double(totalFrames) / sampleRate + 1.0
+        if let hb = makePink(renderFmt, min(dur, 5.0), 1.0) { offHiss.scheduleBuffer(hb, at: nil, options: .loops) }
+        if let rb = makeRumble(renderFmt, min(dur, 3.0), 1.0) { offRumble.scheduleBuffer(rb, at: nil, options: .loops) }
+        let t = Double(params.crackle) / 100.0
+        let popProb = 0.000001 * pow(2000.0, t)
+        if let cb = makeCrackle(renderFmt, min(dur, 3.0), 1.0, popProb: popProb) { offCrackle.scheduleBuffer(cb, at: nil, options: .loops) }
+        offHiss.play(); offRumble.play(); offCrackle.play()
+
+        // Render in chunks, writing directly to output file
+        let outputFrames = prebaked.frameLength
+        let tempDir = FileManager.default.temporaryDirectory
+        let filename = "Vinyl_\(Int(Date().timeIntervalSince1970)).wav"
+        let outputURL = tempDir.appendingPathComponent(filename)
+
+        let outputFile = try AVAudioFile(forWriting: outputURL, settings: [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: sampleRate,
+            AVNumberOfChannelsKey: channels,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false
+        ])
+
+        guard let renderBuf = AVAudioPCMBuffer(pcmFormat: renderFmt, frameCapacity: 4096) else {
+            throw NSError(domain: "Vinyl", code: -1, userInfo: [NSLocalizedDescriptionKey: "Buffer allocation failed"])
+        }
+
+        var framesRendered: AVAudioFrameCount = 0
+        while framesRendered < outputFrames {
+            let status = try offEngine.renderOffline(min(4096, outputFrames - framesRendered), to: renderBuf)
+            switch status {
+            case .success:
+                try outputFile.write(from: renderBuf)
+                framesRendered += renderBuf.frameLength
+                let prog = Double(framesRendered) / Double(outputFrames)
+                DispatchQueue.main.async { self.convertProgress = prog }
+            case .error, .insufficientDataFromInputNode, .cannotDoInCurrentContext:
+                break
+            @unknown default:
+                break
+            }
+            if status != .success { break }
+        }
+
+        offEngine.stop()
+        return outputURL
+    }
+
+    private func prebakeWowFlutter(source: AVAudioPCMBuffer, format: AVAudioFormat) -> AVAudioPCMBuffer {
+        guard !isBypassed else { return source }
+        let sr = format.sampleRate
+        let totalSamples = Int(source.frameLength)
+        let duration = Double(totalSamples) / sr
+        let w = Double(params.wear) / 100
+        let m = Double(params.masterIntensity) / 100
+        let wowD = (0.004 + w * 0.035) * Double(params.wowDepth) / 100 * m
+        let flutD = (0.002 + w * 0.02) * Double(params.flutter) / 100 * m
+        let warpD = (0.006 + w * 0.05) * Double(params.warpWow) / 100 * m
+
+        // Build rate curve in 50ms chunks
+        let chunkDuration = 0.05
+        let totalChunks = Int(duration / chunkDuration) + 1
+        var rateCurve = [Float](repeating: 1.0, count: totalChunks)
+        var phase = 0.0
+        for i in 0..<totalChunks {
+            phase += chunkDuration
+            let wow = wowD * sin(2 * .pi * 0.4 * phase)
+            let flutter = flutD * sin(2 * .pi * 8 * phase)
+            let warp = warpD * sin(2 * .pi * 0.25 * phase)
+            rateCurve[i] = Float(max(0.97, min(1.03, 1.0 + wow + flutter + warp)))
+        }
+
+        // Variable-rate resample
+        let chunkSamples = Int(chunkDuration * sr)
+        guard let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(totalSamples + Int(sr))) else { return source }
+        var outPos = 0
+        var srcPos: Double = 0.0
+
+        for ch in 0..<Int(format.channelCount) {
+            guard let srcData = source.floatChannelData?[ch],
+                  let dstData = output.floatChannelData?[ch] else { continue }
+            outPos = 0
+            srcPos = 0.0
+            for chunkIdx in 0..<totalChunks {
+                let rate = Double(rateCurve[chunkIdx])
+                let samplesThisChunk = chunkSamples
+                for _ in 0..<samplesThisChunk {
+                    let intSrc = Int(srcPos)
+                    let frac = Float(srcPos - Double(intSrc))
+                    if intSrc + 1 < totalSamples {
+                        dstData[outPos] = srcData[intSrc] * (1 - frac) + srcData[intSrc + 1] * frac
+                    } else if intSrc < totalSamples {
+                        dstData[outPos] = srcData[intSrc]
+                    } else { break }
+                    outPos += 1
+                    srcPos += rate
+                    if outPos >= totalSamples + Int(sr) { break }
+                }
+                if outPos >= totalSamples + Int(sr) { break }
+            }
+        }
+
+        output.frameLength = AVAudioFrameCount(min(outPos, totalSamples + Int(sr)))
+
+        // Mono mix if enabled
+        if monoMode, format.channelCount == 2,
+           let l = output.floatChannelData?[0],
+           let r = output.floatChannelData?[1] {
+            for i in 0..<Int(output.frameLength) {
+                let mid = (l[i] + r[i]) * 0.5
+                l[i] = mid; r[i] = mid
+            }
+        }
+
+        return output
+    }
+
+    func previewConverted() {
+        guard let url = convertedFileURL else { return }
+        // Stop main playback so preview plays clean (no double effects)
+        if isPlaying { stopPlayback() }
+        do {
+            previewPlayer = try AVAudioPlayer(contentsOf: url)
+            previewPlayer?.delegate = nil
+            previewPlayer?.play()
+            isPreviewing = true
+        } catch { print("Preview error: \(error)") }
+    }
+
+    func stopPreview() {
+        previewPlayer?.stop()
+        previewPlayer = nil
+        isPreviewing = false
+    }
+
+    func clearConverter() {
+        stopPreview()
+        converterBuffer = nil
+        convertedFileURL = nil
+        convertProgress = 0
+        converterSourceLoaded = false
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var engine = VinylEngine()
     @State private var showFilePicker = false
+    @State private var showSettings = false
 
     var body: some View {
         GeometryReader { geo in
@@ -10,7 +11,7 @@ struct ContentView: View {
                 Color(hex: "0e0e0e").ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 0) {
-                        HeaderView()
+                        HeaderView(showSettings: $showSettings)
                         if geo.size.width < 600 {
                             portraitContent
                         } else {
@@ -26,6 +27,9 @@ struct ContentView: View {
                 showFilePicker = false
             }
         }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
         .onAppear {
             if let france = SampleTrack.library.first(where: { $0.id == "france" }) {
                 engine.loadTrack(france)
@@ -33,21 +37,26 @@ struct ContentView: View {
         }
     }
 
-    // Portrait: transport + library full-width, then tubes/bypass | presets side-by-side
+    // Portrait: transport + converter + library full-width, then tubes/bypass | presets side-by-side
     private var portraitContent: some View {
         VStack(spacing: 10) {
             TransportView(engine: engine)
-            SampleLibraryView(engine: engine)
-            HStack(alignment: .top, spacing: 12) {
-                VStack(spacing: 8) {
-                    TubeControlsView(engine: engine)
-                    portraitBypass
+            ConverterView(engine: engine)
+            Group {
+                SampleLibraryView(engine: engine)
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(spacing: 8) {
+                        TubeControlsView(engine: engine)
+                        portraitBypass
+                    }
+                    .frame(width: 130)
+                    PresetsView(engine: engine)
                 }
-                .frame(width: 130)
-                PresetsView(engine: engine)
+                MasterControlsView(engine: engine)
+                EffectSectionsView(engine: engine)
             }
-            MasterControlsView(engine: engine)
-            EffectSectionsView(engine: engine)
+            .disabled(engine.isPreviewing)
+            .opacity(engine.isPreviewing ? 0.4 : 1.0)
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 40)
@@ -91,12 +100,19 @@ struct ContentView: View {
                 StereoMonoToggle(engine: engine)
             }
             .frame(width: 200)
+            .disabled(engine.isPreviewing)
+            .opacity(engine.isPreviewing ? 0.4 : 1.0)
             VStack(spacing: 10) {
                 TransportView(engine: engine)
-                SampleLibraryView(engine: engine)
-                PresetsView(engine: engine)
-                MasterControlsView(engine: engine)
-                EffectSectionsView(engine: engine)
+                ConverterView(engine: engine)
+                Group {
+                    SampleLibraryView(engine: engine)
+                    PresetsView(engine: engine)
+                    MasterControlsView(engine: engine)
+                    EffectSectionsView(engine: engine)
+                }
+                .disabled(engine.isPreviewing)
+                .opacity(engine.isPreviewing ? 0.4 : 1.0)
             }
         }
         .padding(.horizontal, 16)
@@ -105,11 +121,15 @@ struct ContentView: View {
 }
 
 struct HeaderView: View {
+    @Binding var showSettings: Bool
     var body: some View {
         HStack(alignment: .lastTextBaseline, spacing: 10) {
             Text("Vinyl").font(.custom("Georgia", size: 22)).foregroundColor(Color(hex: "e8e6e0"))
             Text("analog emulation").font(.system(size: 11, design: .monospaced)).foregroundColor(Color(hex: "5a5856")).kerning(1.2)
             Spacer()
+            Button(action: { showSettings = true }) {
+                Image(systemName: "gearshape").font(.system(size: 14)).foregroundColor(Color(hex: "5a5856"))
+            }
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
         .overlay(Divider().opacity(0.15), alignment: .bottom)
@@ -160,6 +180,50 @@ struct StereoMonoToggle: View {
                 .background(active ? Color(hex: "1e1a14") : Color(hex: "161616"))
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(active ? Color(hex: "c8b89a").opacity(0.4) : Color.white.opacity(0.08), lineWidth: 0.5))
                 .cornerRadius(6)
+        }
+    }
+}
+
+struct SettingsView: View {
+    @Environment(\.dismiss) var dismiss
+    @AppStorage("outputFolder") private var outputFolder: String = ""
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color(hex: "0e0e0e").ignoresSafeArea()
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("output folder").font(.system(size: 11, weight: .medium, design: .monospaced)).foregroundColor(Color(hex: "9a9690"))
+                        Text(outputFolder.isEmpty ? "default (share sheet)" : outputFolder)
+                            .font(.system(size: 10, design: .monospaced)).foregroundColor(Color(hex: "5a5856"))
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(hex: "161616"))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08), lineWidth: 0.5))
+                    .cornerRadius(8)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("about").font(.system(size: 11, weight: .medium, design: .monospaced)).foregroundColor(Color(hex: "9a9690"))
+                        Text("vinyl analog emulation").font(.system(size: 10, design: .monospaced)).foregroundColor(Color(hex: "5a5856"))
+                        Text("32-bit float stereo WAV output").font(.system(size: 10, design: .monospaced)).foregroundColor(Color(hex: "5a5856"))
+                    }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(hex: "161616"))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08), lineWidth: 0.5))
+                    .cornerRadius(8)
+                    Spacer()
+                }
+                .padding(16)
+            }
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .foregroundColor(Color(hex: "c8b89a"))
+                }
+            }
         }
     }
 }

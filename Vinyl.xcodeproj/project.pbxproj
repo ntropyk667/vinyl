@@ -23,6 +23,7 @@
 		A007 /* ControlsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007 /* ControlsViews.swift */; };
 		A008 /* TubeControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B008 /* TubeControlsView.swift */; };
 		A009 /* DocumentPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B009 /* DocumentPickerView.swift */; };
+		A010 /* ConverterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010 /* ConverterView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +43,7 @@
 		B007 /* ControlsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlsViews.swift; sourceTree = "<group>"; };
 		B008 /* TubeControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TubeControlsView.swift; sourceTree = "<group>"; };
 		B009 /* DocumentPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentPickerView.swift; sourceTree = "<group>"; };
+		B010 /* ConverterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConverterView.swift; sourceTree = "<group>"; };
 		B011 /* Vinyl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vinyl.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -91,6 +93,7 @@
 				B007 /* ControlsViews.swift */,
 				B008 /* TubeControlsView.swift */,
 				B009 /* DocumentPickerView.swift */,
+				B010 /* ConverterView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -203,6 +206,7 @@
 				A007 /* ControlsViews.swift in Sources */,
 				A008 /* TubeControlsView.swift in Sources */,
 				A009 /* DocumentPickerView.swift in Sources */,
+				A010 /* ConverterView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
