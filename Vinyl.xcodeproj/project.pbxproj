@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2C872B762F78A1F1004BD3AB /* lex_fridman_jim_keller_2019.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2C872B752F78A1F1004BD3AB /* lex_fridman_jim_keller_2019.mp3 */; };
+		2C872B772F78A1F1004BD3AB /* Carl Sagans - Pale Blue Dot.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2C872B742F78A1F1004BD3AB /* Carl Sagans - Pale Blue Dot.mp3 */; };
 		931C4BD22F7096CC0035EE0A /* easiness.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 931C4BCF2F7096CC0035EE0A /* easiness.mp3 */; };
 		931C4BD32F7096CC0035EE0A /* not_srv.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 931C4BD02F7096CC0035EE0A /* not_srv.mp4 */; };
 		931C4BD42F7096CC0035EE0A /* one_night_in_france.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 931C4BD12F7096CC0035EE0A /* one_night_in_france.mp3 */; };
@@ -24,6 +26,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2C872B742F78A1F1004BD3AB /* Carl Sagans - Pale Blue Dot.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "Carl Sagans - Pale Blue Dot.mp3"; sourceTree = "<group>"; };
+		2C872B752F78A1F1004BD3AB /* lex_fridman_jim_keller_2019.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = lex_fridman_jim_keller_2019.mp3; sourceTree = "<group>"; };
 		931C4BCE2F7096CC0035EE0A /* a_neon_flesh.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = a_neon_flesh.mp3; sourceTree = "<group>"; };
 		931C4BCF2F7096CC0035EE0A /* easiness.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = easiness.mp3; sourceTree = "<group>"; };
 		931C4BD02F7096CC0035EE0A /* not_srv.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = not_srv.mp4; sourceTree = "<group>"; };
@@ -55,6 +59,8 @@
 		D001 = {
 			isa = PBXGroup;
 			children = (
+				2C872B742F78A1F1004BD3AB /* Carl Sagans - Pale Blue Dot.mp3 */,
+				2C872B752F78A1F1004BD3AB /* lex_fridman_jim_keller_2019.mp3 */,
 				D002 /* Vinyl */,
 				D005 /* Products */,
 			);
@@ -171,6 +177,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2C872B762F78A1F1004BD3AB /* lex_fridman_jim_keller_2019.mp3 in Resources */,
+				2C872B772F78A1F1004BD3AB /* Carl Sagans - Pale Blue Dot.mp3 in Resources */,
 				931C4BD22F7096CC0035EE0A /* easiness.mp3 in Resources */,
 				931C4BD32F7096CC0035EE0A /* not_srv.mp4 in Resources */,
 				931C4BD42F7096CC0035EE0A /* one_night_in_france.mp3 in Resources */,

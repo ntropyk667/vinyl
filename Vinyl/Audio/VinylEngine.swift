@@ -145,9 +145,9 @@ class VinylEngine: ObservableObject {
     private func generateNoise() {
         let sr = engine.mainMixerNode.outputFormat(forBus: 0).sampleRate
         let fmt = AVAudioFormat(standardFormatWithSampleRate: sr, channels: 2)!
-        if let b = makePink(fmt, 3.0, 0) { hissPlayer.scheduleBuffer(b, at: nil, options: .loops) }
-        if let b = makeRumble(fmt, 2.0, 0) { rumblePlayer.scheduleBuffer(b, at: nil, options: .loops) }
-        if let b = makeCrackle(fmt, 2.0, 0) { cracklePlayer.scheduleBuffer(b, at: nil, options: .loops) }
+        if let b = makePink(fmt, 3.0, 1.0) { hissPlayer.scheduleBuffer(b, at: nil, options: .loops) }
+        if let b = makeRumble(fmt, 2.0, 1.0) { rumblePlayer.scheduleBuffer(b, at: nil, options: .loops) }
+        if let b = makeCrackle(fmt, 2.0, 1.0) { cracklePlayer.scheduleBuffer(b, at: nil, options: .loops) }
     }
 
     private func makePink(_ fmt: AVAudioFormat, _ dur: Double, _ gain: Float) -> AVAudioPCMBuffer? {
@@ -186,7 +186,7 @@ class VinylEngine: ObservableObject {
         return buf
     }
 
-    private func makeCrackle(_ fmt: AVAudioFormat, _ dur: Double, _ gain: Float) -> AVAudioPCMBuffer? {
+    private func makeCrackle(_ fmt: AVAudioFormat, _ dur: Double, _ gain: Float, popProb: Double = 0.0003) -> AVAudioPCMBuffer? {
         let n = AVAudioFrameCount(fmt.sampleRate * dur)
         guard let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: n) else { return nil }
         buf.frameLength = n
@@ -194,7 +194,7 @@ class VinylEngine: ObservableObject {
         for ch in 0..<Int(fmt.channelCount) {
             guard let d = buf.floatChannelData?[ch] else { continue }
             for i in 0..<Int(n) {
-                if Double.random(in: 0...1) < 0.0003 { phase = Int.random(in: 8...28); amp = Float.random(in: 0.4...1.0) }
+                if Double.random(in: 0...1) < popProb { phase = Int.random(in: 8...28); amp = Float.random(in: 0.4...1.0) }
                 if phase > 0 { d[i] = Float.random(in: -1...1) * amp * Float(phase) / 28.0 * gain; phase -= 1 }
                 else { d[i] = 0 }
             }
@@ -410,9 +410,34 @@ class VinylEngine: ObservableObject {
 
     private func scheduleNoiseUpdate() {
         noiseUpdateWorkItem?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.updateNoiseParams() }
+        let work = DispatchWorkItem { [weak self] in
+            self?.updateNoiseParams()
+            self?.updateCrackleBuffer()
+        }
         noiseUpdateWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+    }
+
+    private var crackleWorkItem: DispatchWorkItem?
+
+    func scheduleCrackleUpdate() {
+        crackleWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.updateCrackleBuffer() }
+        crackleWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+    }
+
+    private func updateCrackleBuffer() {
+        let sr = engine.mainMixerNode.outputFormat(forBus: 0).sampleRate
+        let fmt = AVAudioFormat(standardFormatWithSampleRate: sr, channels: 2)!
+        // Exponential mapping: 0 → ~1 pop/30s, 100 → dense crackle
+        let t = Double(params.crackle) / 100.0
+        let popProb = 0.000001 * pow(2000.0, t)
+        guard let b = makeCrackle(fmt, 2.0, 1.0, popProb: popProb) else { return }
+        let wasPlaying = cracklePlayer.isPlaying
+        cracklePlayer.stop()
+        cracklePlayer.scheduleBuffer(b, at: nil, options: .loops)
+        if wasPlaying { cracklePlayer.play() }
     }
 
     func updateVinylParams() {
@@ -447,9 +472,9 @@ class VinylEngine: ObservableObject {
         let w = params.wear / 100
         let m = params.masterIntensity / 100
         let active = !isBypassed
-        hissPlayer.volume = active ? Float((0.01 + Double(w) * 0.08) * Double(params.hiss) / 100 * Double(m)) * 8 : 0
-        rumblePlayer.volume = active ? Float((0.02 + Double(w) * 0.22) * Double(params.rumble) / 100 * Double(m)) * 5 : 0
-        cracklePlayer.volume = active ? Float((0.08 + Double(w) * 0.55) * Double(params.crackle) / 100 * Double(m)) * 3 : 0
+        hissPlayer.volume = active ? Float((0.01 + Double(w) * 0.08) * Double(params.hiss) / 100 * Double(m)) * 2 : 0
+        rumblePlayer.volume = active ? Float((0.02 + Double(w) * 0.22) * Double(params.rumble) / 100 * Double(m)) * 1.5 : 0
+        cracklePlayer.volume = active ? Float((0.08 + Double(w) * 0.55) * Double(params.crackle) / 100 * Double(m)) * 1.0 : 0
     }
 
     private var monoModeBeforeBypass = false
