@@ -5,7 +5,18 @@ struct TransportView: View {
     @State private var isSeeking = false
     @State private var seekValue: Double = 0
 
-    var displayTime: Double { isSeeking ? seekValue : engine.currentTime }
+    /// Needle drop offset in seconds
+    private var ndOffset: Double {
+        Double(engine.needleDropFrameCount) / engine.sampleRate
+    }
+
+    /// Music-relative current time (hides needle drop pre-roll)
+    private var musicTime: Double { max(0, engine.currentTime - ndOffset) }
+
+    /// Music-only duration
+    private var musicDur: Double { engine.musicDuration }
+
+    var displayTime: Double { isSeeking ? seekValue : musicTime }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -20,7 +31,7 @@ struct TransportView: View {
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(Color(hex: "5a9a78"))
                 } else {
-                    Text("\(formatTime(displayTime)) / \(formatTime(engine.duration))")
+                    Text("\(formatTime(displayTime)) / \(formatTime(musicDur))")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(Color(hex: "5a5856"))
                 }
@@ -45,10 +56,11 @@ struct TransportView: View {
                     .highPriorityGesture(DragGesture(minimumDistance: 0)
                         .onChanged { val in
                             isSeeking = true
-                            seekValue = max(0, min(1, val.location.x / geo.size.width)) * engine.duration
+                            seekValue = max(0, min(1, val.location.x / geo.size.width)) * musicDur
                         }
                         .onEnded { val in
-                            engine.seek(to: max(0, min(1, val.location.x / geo.size.width)) * engine.duration)
+                            let musicPos = max(0, min(1, val.location.x / geo.size.width)) * musicDur
+                            engine.seek(to: musicPos + ndOffset)
                             isSeeking = false
                         })
                 }
@@ -56,7 +68,7 @@ struct TransportView: View {
             .frame(height: 18)
             HStack(spacing: 12) {
                 TransportButton(icon: "backward.end.fill", size: 14) { engine.restart() }
-                TransportButton(icon: "gobackward.10", size: 14) { engine.seek(to: max(0, engine.currentTime - 10)) }
+                TransportButton(icon: "gobackward.10", size: 14) { engine.seek(to: max(ndOffset, engine.currentTime - 10)) }
                 Button(action: { engine.togglePlayback() }) {
                     ZStack {
                         Circle().stroke(Color.white.opacity(0.14), lineWidth: 0.5).frame(width: 38, height: 38)
@@ -84,8 +96,8 @@ struct TransportView: View {
     }
 
     private var progress: Double {
-        guard engine.duration > 0 else { return 0 }
-        return displayTime / engine.duration
+        guard musicDur > 0 else { return 0 }
+        return displayTime / musicDur
     }
 
     private func handleNext() {

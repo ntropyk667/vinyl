@@ -19,6 +19,30 @@ class VinylEngine: ObservableObject {
     @Published var activeMode: ActiveMode = .library
     var lastSampleTrack: SampleTrack?
 
+    // Needle Drop
+    enum NeedleDropMode: Int, CaseIterable {
+        case bypass = 0, drop1, drop2, drop3, drop4
+        var next: NeedleDropMode {
+            let all = NeedleDropMode.allCases
+            let idx = (rawValue + 1) % all.count
+            return all[idx]
+        }
+        var label: String {
+            switch self {
+            case .bypass: return "OFF"
+            case .drop1: return "ND1"
+            case .drop2: return "ND2"
+            case .drop3: return "ND3"
+            case .drop4: return "ND4"
+            }
+        }
+    }
+    @Published var needleDropMode: NeedleDropMode = .bypass
+    private var needleDropBuffers: [AVAudioPCMBuffer] = []
+    /// Number of frames the needle drop prepended (0 when bypass)
+    private(set) var needleDropFrameCount: AVAudioFrameCount = 0
+    private let needleDropFiles = ["needle_drop_1", "needle_drop_2", "needle_drop_3", "needle_drop_4"]
+
     // Converter state
     @Published var isConverting = false
     @Published var convertProgress: Double = 0
@@ -60,6 +84,7 @@ class VinylEngine: ObservableObject {
         setupAudioSession()
         setupEngine()
         setupInterruptionHandling()
+        loadNeedleDropFiles()
         applyPreset(.electronic)
     }
 
@@ -242,6 +267,8 @@ class VinylEngine: ObservableObject {
             guard let ab = rawBuffer else { return }
             try af.read(into: ab)
             audioBuffer = toStereo(ab)
+            needleDropFrameCount = 0
+            rebuildBufferWithNeedleDrop()
             if let preset = VinylPreset.all.first(where: { $0.id == track.defaultPresetID }) { applyPreset(preset) }
             if wasPlaying {
                 // Small delay ensures the engine has fully settled after stop() before rescheduling
@@ -270,6 +297,8 @@ class VinylEngine: ObservableObject {
             guard let ab = rawBuffer else { return }
             try af.read(into: ab)
             audioBuffer = toStereo(ab)
+            needleDropFrameCount = 0
+            rebuildBufferWithNeedleDrop()
             applyPreset(.audiophile)
             preampOn = false
             powerampOn = false
@@ -361,7 +390,7 @@ class VinylEngine: ObservableObject {
         }
     }
 
-    func restart() { seek(to: 0) }
+    func restart() { seek(to: 0) }  // starts from needle drop if active
 
     private func handleEnd() {
         // Buffer finished naturally. Clean up timers, reset position, loop from top.
@@ -429,6 +458,16 @@ class VinylEngine: ObservableObject {
         updateVinylParams()
         updateAmpParams()
         scheduleNoiseUpdate()
+        // Rebuild needle drop with updated intensity (volume + rolloff)
+        if needleDropMode != .bypass {
+            let musicPos = needleDropAdjustedTime
+            let wasPlaying = isPlaying
+            rebuildBufferWithNeedleDrop()
+            let newNdOffset = Double(needleDropFrameCount) / sampleRate
+            pausedPosition = musicPos + newNdOffset
+            currentTime = pausedPosition
+            if wasPlaying { seek(to: pausedPosition) }
+        }
     }
 
     private func scheduleNoiseUpdate() {
@@ -525,6 +564,141 @@ class VinylEngine: ObservableObject {
         if isPlaying { seek(to: currentTime) }
     }
 
+    // MARK: - Needle Drop
+
+    private func loadNeedleDropFiles() {
+        needleDropBuffers = []
+        for name in needleDropFiles {
+            guard let url = Bundle.main.url(forResource: name, withExtension: "wav") else {
+                print("Needle drop not found: \(name)")
+                continue
+            }
+            do {
+                let file = try AVAudioFile(forReading: url)
+                let frameCount = AVAudioFrameCount(file.length)
+                guard let buf = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frameCount) else { continue }
+                try file.read(into: buf)
+                needleDropBuffers.append(toStereo(buf))
+            } catch { print("Needle drop load error: \(error)") }
+        }
+    }
+
+    func cycleNeedleDrop() {
+        let wasPlaying = isPlaying
+        let musicPos = needleDropAdjustedTime  // music-relative time before mode change
+        if wasPlaying { stopPlayback() }
+        needleDropMode = needleDropMode.next
+        // Rebuild buffer with new needle drop and resume from same music position
+        rebuildBufferWithNeedleDrop()
+        // Seek to same music position (add new needle drop offset)
+        let newNdOffset = Double(needleDropFrameCount) / sampleRate
+        let absolutePos = musicPos + newNdOffset
+        pausedPosition = absolutePos
+        currentTime = absolutePos
+        if wasPlaying {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.startPlayback()
+            }
+        }
+    }
+
+    /// Current playback time adjusted for needle drop offset (music-relative)
+    var needleDropAdjustedTime: Double {
+        let ndSec = Double(needleDropFrameCount) / sampleRate
+        return max(0, currentTime - ndSec)
+    }
+
+    /// Actual duration of the music (without needle drop)
+    var musicDuration: Double {
+        let ndSec = Double(needleDropFrameCount) / sampleRate
+        return max(0, duration - ndSec)
+    }
+
+    private func rebuildBufferWithNeedleDrop() {
+        // Strip any existing needle drop from the buffer first
+        guard let buf = strippedMusicBuffer() else { return }
+        if needleDropMode == .bypass {
+            audioBuffer = buf
+            needleDropFrameCount = 0
+        } else {
+            let idx = needleDropMode.rawValue - 1  // drop1=0, drop2=1, etc.
+            guard idx >= 0 && idx < needleDropBuffers.count else {
+                audioBuffer = buf
+                needleDropFrameCount = 0
+                return
+            }
+            let ndBuf = needleDropBuffers[idx]
+            let m = params.masterIntensity / 100
+            audioBuffer = prependNeedleDrop(ndBuf, to: buf, intensity: m)
+        }
+        let sr = audioBuffer?.format.sampleRate ?? 44100
+        duration = Double(audioBuffer?.frameLength ?? 0) / sr
+    }
+
+    /// Returns the music-only buffer (strips needle drop prefix if present)
+    private func strippedMusicBuffer() -> AVAudioPCMBuffer? {
+        guard let buf = audioBuffer else { return nil }
+        if needleDropFrameCount == 0 { return buf }
+        let musicFrames = buf.frameLength - needleDropFrameCount
+        guard musicFrames > 0 else { return buf }
+        guard let fmt = audioBuffer?.format,
+              let out = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: musicFrames) else { return buf }
+        out.frameLength = musicFrames
+        for ch in 0..<Int(fmt.channelCount) {
+            guard let src = buf.floatChannelData?[ch],
+                  let dst = out.floatChannelData?[ch] else { continue }
+            memcpy(dst, src.advanced(by: Int(needleDropFrameCount)), Int(musicFrames) * MemoryLayout<Float>.size)
+        }
+        return out
+    }
+
+    /// Prepend needle drop buffer to music buffer with intensity-based volume and rolloff fade
+    private func prependNeedleDrop(_ nd: AVAudioPCMBuffer, to music: AVAudioPCMBuffer, intensity: Float) -> AVAudioPCMBuffer {
+        let sr = music.format.sampleRate
+        let ndFrames = nd.frameLength
+        let musicFrames = music.frameLength
+        let totalFrames = ndFrames + musicFrames
+        let fmt = music.format
+
+        guard let out = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: totalFrames) else { return music }
+        out.frameLength = totalFrames
+        needleDropFrameCount = ndFrames
+
+        // Fade-out duration scales with intensity: 0% = no fade, 100% = 1.5s fade
+        let fadeDuration = Double(intensity) * 1.5
+        let fadeSamples = Int(fadeDuration * sr)
+        let fadeStart = max(0, Int(ndFrames) - fadeSamples)
+
+        for ch in 0..<Int(fmt.channelCount) {
+            guard let dst = out.floatChannelData?[ch] else { continue }
+
+            // Copy needle drop with volume scaling and fade
+            if ch < Int(nd.format.channelCount), let ndSrc = nd.floatChannelData?[ch] {
+                for i in 0..<Int(ndFrames) {
+                    var sample = ndSrc[i] * intensity
+                    // Apply fade-out envelope in the tail
+                    if i >= fadeStart && fadeSamples > 0 {
+                        let fadePos = Float(i - fadeStart) / Float(fadeSamples)
+                        // Exponential fade for smooth rolloff
+                        let fadeGain = (1.0 - fadePos) * (1.0 - fadePos)
+                        sample *= fadeGain
+                    }
+                    dst[i] = sample
+                }
+            } else {
+                // Zero-fill if channel mismatch
+                memset(dst, 0, Int(ndFrames) * MemoryLayout<Float>.size)
+            }
+
+            // Copy music after needle drop
+            if let musicSrc = music.floatChannelData?[ch] {
+                memcpy(dst.advanced(by: Int(ndFrames)), musicSrc, Int(musicFrames) * MemoryLayout<Float>.size)
+            }
+        }
+
+        return out
+    }
+
     // MARK: - Mode Switching
 
     func switchToLibrary() {
@@ -584,7 +758,9 @@ class VinylEngine: ObservableObject {
             // Set both main player buffer and converter buffer from single read
             audioFile = file
             audioBuffer = stereo
-            converterBuffer = stereo
+            needleDropFrameCount = 0
+            rebuildBufferWithNeedleDrop()
+            converterBuffer = strippedMusicBuffer()  // converter always uses clean music
             applyPreset(.audiophile)
             preampOn = true
             powerampOn = true
@@ -603,6 +779,7 @@ class VinylEngine: ObservableObject {
     }
 
     var hasConvertedFile: Bool { convertedFileURL != nil }
+    var sampleRate: Double { audioBuffer?.format.sampleRate ?? 44100 }
 
     func performOfflineRender() {
         guard let sourceBuffer = converterBuffer else { return }
@@ -836,6 +1013,7 @@ class VinylEngine: ObservableObject {
         if isPlaying { stopPlayback() } else { playerNode.stop() }
         pausedPosition = 0
         currentTime = 0
+        needleDropFrameCount = 0  // converted files don't get needle drop
         do {
             let file = try AVAudioFile(forReading: url)
             duration = Double(file.length) / file.fileFormat.sampleRate

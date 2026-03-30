@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		NDB01 /* needle_drop_1.wav in Resources */ = {isa = PBXBuildFile; fileRef = ND01 /* needle_drop_1.wav */; };
+		NDB02 /* needle_drop_2.wav in Resources */ = {isa = PBXBuildFile; fileRef = ND02 /* needle_drop_2.wav */; };
+		NDB03 /* needle_drop_3.wav in Resources */ = {isa = PBXBuildFile; fileRef = ND03 /* needle_drop_3.wav */; };
+		NDB04 /* needle_drop_4.wav in Resources */ = {isa = PBXBuildFile; fileRef = ND04 /* needle_drop_4.wav */; };
 		2C872B762F78A1F1004BD3AB /* lex_fridman_jim_keller_2019.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2C872B752F78A1F1004BD3AB /* lex_fridman_jim_keller_2019.mp3 */; };
 		2C872B772F78A1F1004BD3AB /* Carl Sagans - Pale Blue Dot.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2C872B742F78A1F1004BD3AB /* Carl Sagans - Pale Blue Dot.mp3 */; };
 		931C4BD22F7096CC0035EE0A /* easiness.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 931C4BCF2F7096CC0035EE0A /* easiness.mp3 */; };
@@ -45,6 +49,10 @@
 		B009 /* DocumentPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentPickerView.swift; sourceTree = "<group>"; };
 		B010 /* ConverterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConverterView.swift; sourceTree = "<group>"; };
 		B011 /* Vinyl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vinyl.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		ND01 /* needle_drop_1.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = needle_drop_1.wav; sourceTree = "<group>"; };
+		ND02 /* needle_drop_2.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = needle_drop_2.wav; sourceTree = "<group>"; };
+		ND03 /* needle_drop_3.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = needle_drop_3.wav; sourceTree = "<group>"; };
+		ND04 /* needle_drop_4.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = needle_drop_4.wav; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -76,6 +84,7 @@
 				D003 /* Views */,
 				D004 /* Audio */,
 				D006 /* Models */,
+				NDG1 /* NeedleDrops */,
 				931C4BCE2F7096CC0035EE0A /* a_neon_flesh.mp3 */,
 				931C4BCF2F7096CC0035EE0A /* easiness.mp3 */,
 				931C4BD02F7096CC0035EE0A /* not_srv.mp4 */,
@@ -120,6 +129,17 @@
 				B004 /* VinylModels.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		NDG1 /* NeedleDrops */ = {
+			isa = PBXGroup;
+			children = (
+				ND01 /* needle_drop_1.wav */,
+				ND02 /* needle_drop_2.wav */,
+				ND03 /* needle_drop_3.wav */,
+				ND04 /* needle_drop_4.wav */,
+			);
+			path = "Resources/NeedleDrops";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -186,6 +206,10 @@
 				931C4BD32F7096CC0035EE0A /* not_srv.mp4 in Resources */,
 				931C4BD42F7096CC0035EE0A /* one_night_in_france.mp3 in Resources */,
 				931C4BD52F7096CC0035EE0A /* a_neon_flesh.mp3 in Resources */,
+				NDB01 /* needle_drop_1.wav in Resources */,
+				NDB02 /* needle_drop_2.wav in Resources */,
+				NDB03 /* needle_drop_3.wav in Resources */,
+				NDB04 /* needle_drop_4.wav in Resources */,
 				93317E602F72204B004A6108 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
