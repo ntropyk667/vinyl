@@ -248,6 +248,13 @@ class VinylEngine: ObservableObject {
         let wasPlaying = isPlaying
         // FIX: use stop() not pause(), and never detach/reattach the node
         if isPlaying { stopPlayback() } else { playerNode.stop() }
+        // Clear podcast state when switching to a regular track
+        podcastFileURL = nil
+        podcastTotalDuration = 0
+        podcastChunkStartTime = 0
+        currentEpisodeId = nil
+        podcastEpisodeList = []
+        podcastEpisodeIndex = 0
         currentTrack = track
         lastSampleTrack = track
         activeMode = .library
@@ -283,6 +290,13 @@ class VinylEngine: ObservableObject {
         let wasPlaying = isPlaying
         // FIX: use stop() not pause(), and never detach/reattach the node
         if isPlaying { stopPlayback() } else { playerNode.stop() }
+        // Clear podcast state
+        podcastFileURL = nil
+        podcastTotalDuration = 0
+        podcastChunkStartTime = 0
+        currentEpisodeId = nil
+        podcastEpisodeList = []
+        podcastEpisodeIndex = 0
         currentTrack = nil
         activeMode = .converter
         displayTitle = url.deletingPathExtension().lastPathComponent
@@ -313,12 +327,21 @@ class VinylEngine: ObservableObject {
     }
 
     func startPlayback() {
+        // For podcast files: load the correct chunk from disk
+        let isPodcast = podcastFileURL != nil
+        if isPodcast, audioFile != nil {
+            loadPodcastChunk(at: pausedPosition)
+        }
+
         guard let buffer = audioBuffer else { return }
         if !engine.isRunning {
             do { try engine.start() } catch { print("Engine start failed: \(error)"); return }
         }
         let sr = audioFile?.fileFormat.sampleRate ?? 44100
-        let startFrame = AVAudioFramePosition(pausedPosition * sr)
+
+        // For podcasts, pausedPosition is absolute — compute chunk-relative offset
+        let bufferPosition = isPodcast ? (pausedPosition - podcastChunkStartTime) : pausedPosition
+        let startFrame = AVAudioFramePosition(max(0, bufferPosition) * sr)
         let frameCount = buffer.frameLength - AVAudioFrameCount(max(0, startFrame))
         guard frameCount > 0 else { return }
         guard let fmt = audioBuffer?.format,
@@ -358,6 +381,7 @@ class VinylEngine: ObservableObject {
     }
 
     func stopPlayback() {
+        // For podcasts, currentTime is already absolute — save it directly
         pausedPosition = currentTime
         // FIX: stop() instead of pause() — cancels all pending scheduled buffers and
         // prevents stale completion callbacks from firing after a track change.
@@ -393,12 +417,30 @@ class VinylEngine: ObservableObject {
     func restart() { seek(to: 0) }  // starts from needle drop if active
 
     private func handleEnd() {
-        // Buffer finished naturally. Clean up timers, reset position, loop from top.
-        // FIX: no resetPlayerNode() — reuse the same node graph; just stop and reschedule.
+        // Buffer finished naturally.
         isPlaying = false
         progressTimer?.invalidate(); progressTimer = nil
         driftTimer?.invalidate(); driftTimer = nil
         wowTimer?.invalidate(); wowTimer = nil
+
+        // For podcast files: check if there's more audio to load
+        if podcastFileURL != nil, let af = audioFile {
+            let sr = af.fileFormat.sampleRate
+            let absolutePos = Double(af.framePosition) / sr
+            if absolutePos < podcastTotalDuration - 1.0 {
+                // More audio remains — set absolute position and load next chunk
+                pausedPosition = absolutePos
+                currentTime = absolutePos
+                startPlayback()
+                return
+            }
+            // Podcast finished — stop at the end
+            pausedPosition = 0
+            currentTime = 0
+            return
+        }
+
+        // Normal track: loop from top
         pausedPosition = 0
         currentTime = 0
         startPlayback()
@@ -733,12 +775,211 @@ class VinylEngine: ObservableObject {
         }
     }
 
+    // MARK: - Podcast Streaming
+
+    @Published var isPodcastLoading = false
+    @Published var podcastLoadError: String?
+    private var currentEpisodeId: String?
+    private var urlDownloadTask: URLSessionDownloadTask?
+    private var podcastFileURL: URL?
+    /// Total duration of the full podcast episode (not the chunk)
+    private var podcastTotalDuration: Double = 0
+    /// Absolute start time (in seconds) of the currently loaded chunk within the full episode
+    private var podcastChunkStartTime: Double = 0
+    /// Episode list from the current feed (newest first) for skip forward/back
+    private var podcastEpisodeList: [PodcastEpisode] = []
+    /// Index of the currently playing episode within podcastEpisodeList
+    private var podcastEpisodeIndex: Int = 0
+
+    /// True when a podcast episode is loaded (not a sample track or converter file)
+    var isPodcastMode: Bool { podcastFileURL != nil || isPodcastLoading }
+
+    /// Can skip back to a previous (older) episode in the feed
+    var canPodcastSkipBack: Bool {
+        isPodcastMode && !podcastEpisodeList.isEmpty && podcastEpisodeIndex < podcastEpisodeList.count - 1
+    }
+
+    /// Can skip forward to a more recent episode in the feed
+    var canPodcastSkipForward: Bool {
+        isPodcastMode && !podcastEpisodeList.isEmpty && podcastEpisodeIndex > 0
+    }
+
+    /// Skip to the previous (older) episode
+    func podcastSkipBack() {
+        guard canPodcastSkipBack else { return }
+        podcastEpisodeIndex += 1
+        let episode = podcastEpisodeList[podcastEpisodeIndex]
+        playPodcastEpisode(episode)
+    }
+
+    /// Skip to the next (more recent) episode
+    func podcastSkipForward() {
+        guard canPodcastSkipForward else { return }
+        podcastEpisodeIndex -= 1
+        let episode = podcastEpisodeList[podcastEpisodeIndex]
+        playPodcastEpisode(episode)
+    }
+
+    /// Load a ~10-minute chunk of the podcast file starting at the given absolute time.
+    /// Sets audioBuffer to the chunk (with needle drop if applicable), updates
+    /// podcastChunkStartTime, and preserves podcastTotalDuration as `duration`.
+    private func loadPodcastChunk(at absoluteTime: Double) {
+        guard let af = audioFile else { return }
+        let sr = af.fileFormat.sampleRate
+        let totalFrames = af.length
+
+        // Seek the file to the correct frame
+        let startFrame = min(AVAudioFramePosition(absoluteTime * sr), totalFrames)
+        af.framePosition = startFrame
+        podcastChunkStartTime = Double(startFrame) / sr
+
+        // Read up to 10 minutes of audio
+        let remainingFrames = totalFrames - startFrame
+        let maxChunkFrames = AVAudioFrameCount(min(Double(remainingFrames), sr * 600))
+        guard maxChunkFrames > 0 else { return }
+
+        guard let rawBuffer = AVAudioPCMBuffer(pcmFormat: af.processingFormat, frameCapacity: maxChunkFrames) else { return }
+        do {
+            try af.read(into: rawBuffer, frameCount: maxChunkFrames)
+        } catch {
+            print("Podcast chunk read error: \(error)")
+            return
+        }
+
+        audioBuffer = toStereo(rawBuffer)
+        needleDropFrameCount = 0
+
+        // Only prepend needle drop at the very start of the episode
+        if podcastChunkStartTime < 1.0 {
+            rebuildBufferWithNeedleDrop()
+        }
+
+        // Always preserve full episode duration (rebuildBufferWithNeedleDrop overwrites it)
+        duration = podcastTotalDuration
+    }
+
+    /// Set episode list context for skip forward/back. Call before playPodcastEpisode.
+    func setPodcastEpisodeList(_ episodes: [PodcastEpisode], currentIndex: Int) {
+        podcastEpisodeList = episodes
+        podcastEpisodeIndex = currentIndex
+    }
+
+    func playPodcastEpisode(_ episode: PodcastEpisode, resumeFrom: TimeInterval = 0) {
+        if isPlaying { stopPlayback() } else { playerNode.stop() }
+
+        isPodcastLoading = true
+        podcastLoadError = nil
+        currentEpisodeId = episode.id
+        currentTrack = nil
+        activeMode = .library
+        displayTitle = episode.title
+        pausedPosition = 0
+        currentTime = 0
+
+        // Use downloadTask — streams to disk, never holds entire file in RAM
+        urlDownloadTask?.cancel()
+        urlDownloadTask = URLSession.shared.downloadTask(with: episode.audioURL) { [weak self] tempLocation, response, error in
+            guard let self = self else { return }
+
+            if let error = error as NSError?, error.code == NSURLErrorCancelled { return }
+
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.isPodcastLoading = false
+                    self.podcastLoadError = "Download failed: \(error.localizedDescription)"
+                }
+                return
+            }
+
+            guard let tempLocation = tempLocation else {
+                DispatchQueue.main.async {
+                    self.isPodcastLoading = false
+                    self.podcastLoadError = "No audio data received"
+                }
+                return
+            }
+
+            // Move to a stable temp path (download temp files get deleted immediately)
+            let ext = episode.audioURL.pathExtension.isEmpty ? "mp3" : episode.audioURL.pathExtension
+            let destURL = FileManager.default.temporaryDirectory.appendingPathComponent("podcast_stream.\(ext)")
+            do {
+                if FileManager.default.fileExists(atPath: destURL.path) {
+                    try FileManager.default.removeItem(at: destURL)
+                }
+                try FileManager.default.moveItem(at: tempLocation, to: destURL)
+                self.podcastFileURL = destURL
+
+                // Open the file on disk — AVAudioFile reads lazily, not all at once
+                let file = try AVAudioFile(forReading: destURL)
+                let sr = file.fileFormat.sampleRate
+                let totalFrames = file.length
+                let totalDuration = Double(totalFrames) / sr
+
+                // Read in a capped chunk (max ~10 minutes at a time to limit RAM)
+                let maxFrames = AVAudioFrameCount(min(Double(totalFrames), sr * 600))
+                let rawBuffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: maxFrames)
+                guard let ab = rawBuffer else {
+                    DispatchQueue.main.async {
+                        self.isPodcastLoading = false
+                        self.podcastLoadError = "Buffer allocation failed"
+                    }
+                    return
+                }
+                try file.read(into: ab, frameCount: maxFrames)
+                let stereo = self.toStereo(ab)
+
+                DispatchQueue.main.async {
+                    self.audioFile = file
+                    self.audioBuffer = stereo
+                    self.needleDropFrameCount = 0
+                    self.podcastTotalDuration = totalDuration
+                    self.podcastChunkStartTime = 0
+                    self.rebuildBufferWithNeedleDrop()
+                    // Always use full episode duration, not chunk duration
+                    self.duration = totalDuration
+                    self.isPodcastLoading = false
+
+                    // Apply podcast preset
+                    if let podcastPreset = VinylPreset.all.first(where: { $0.id == "podcast" }) {
+                        self.applyPreset(podcastPreset)
+                    }
+
+                    // Resume from saved position if applicable
+                    if resumeFrom > 0 {
+                        let ndOffset = Double(self.needleDropFrameCount) / self.sampleRate
+                        self.seek(to: resumeFrom + ndOffset)
+                    } else {
+                        self.startPlayback()
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.isPodcastLoading = false
+                    self.podcastLoadError = "Failed to load audio: \(error.localizedDescription)"
+                }
+            }
+        }
+        urlDownloadTask?.resume()
+    }
+
+    func cancelPodcastDownload() {
+        urlDownloadTask?.cancel()
+        isPodcastLoading = false
+    }
+
     // MARK: - Converter
 
     func loadForConversion(url: URL) {
         // Read once while security scope is active, then share buffer
         let wasPlaying = isPlaying
         if isPlaying { stopPlayback() } else { playerNode.stop() }
+        // Clear podcast state
+        podcastFileURL = nil
+        podcastTotalDuration = 0
+        podcastChunkStartTime = 0
+        currentEpisodeId = nil
+        podcastEpisodeList = []
+        podcastEpisodeIndex = 0
         currentTrack = nil
         activeMode = .converter
         converterSourceName = url.deletingPathExtension().lastPathComponent

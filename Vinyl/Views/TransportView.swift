@@ -67,7 +67,13 @@ struct TransportView: View {
             }
             .frame(height: 18)
             HStack(spacing: 12) {
-                TransportButton(icon: "backward.end.fill", size: 14) { engine.restart() }
+                // Skip back: previous episode in podcast mode, restart otherwise
+                Button(action: { handlePrev() }) {
+                    Image(systemName: "backward.end.fill").font(.system(size: 14))
+                        .foregroundColor(prevButtonEnabled ? Color(hex: "9a9690") : Color(hex: "3a3836"))
+                        .frame(width: 32, height: 32)
+                }
+                .disabled(!prevButtonEnabled)
                 TransportButton(icon: "gobackward.10", size: 14) { engine.seek(to: max(ndOffset, engine.currentTime - 10)) }
                 Button(action: { engine.togglePlayback() }) {
                     ZStack {
@@ -78,12 +84,13 @@ struct TransportView: View {
                     }
                 }
                 TransportButton(icon: "goforward.10", size: 14) { engine.seek(to: min(engine.duration - 0.1, engine.currentTime + 10)) }
+                // Skip forward: next episode in podcast mode, next sample track otherwise
                 Button(action: { handleNext() }) {
                     Image(systemName: "forward.end.fill").font(.system(size: 14))
-                        .foregroundColor(engine.activeMode == .library ? Color(hex: "9a9690") : Color(hex: "3a3836"))
+                        .foregroundColor(nextButtonEnabled ? Color(hex: "9a9690") : Color(hex: "3a3836"))
                         .frame(width: 32, height: 32)
                 }
-                .disabled(engine.activeMode != .library)
+                .disabled(!nextButtonEnabled)
             }
             .frame(maxWidth: .infinity)
             .disabled(engine.isConverting)
@@ -100,7 +107,31 @@ struct TransportView: View {
         return displayTime / musicDur
     }
 
+    /// Whether the skip-back button should be enabled
+    private var prevButtonEnabled: Bool {
+        if engine.isPodcastMode { return engine.canPodcastSkipBack }
+        return true  // restart always works for non-podcast
+    }
+
+    /// Whether the skip-forward button should be enabled
+    private var nextButtonEnabled: Bool {
+        if engine.isPodcastMode { return engine.canPodcastSkipForward }
+        return engine.activeMode == .library  // sample library can skip tracks
+    }
+
+    private func handlePrev() {
+        if engine.isPodcastMode {
+            engine.podcastSkipBack()
+        } else {
+            engine.restart()
+        }
+    }
+
     private func handleNext() {
+        if engine.isPodcastMode {
+            engine.podcastSkipForward()
+            return
+        }
         guard engine.activeMode == .library else { return }
         let idx = SampleTrack.library.firstIndex(where: { $0.id == engine.currentTrack?.id }) ?? 0
         let next = SampleTrack.library[(idx + 1) % SampleTrack.library.count]

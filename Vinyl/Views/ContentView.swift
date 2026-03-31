@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var engine = VinylEngine()
+    @StateObject private var podcastStorage = PodcastStorageManager()
     @State private var showFilePicker = false
     @State private var showSettings = false
 
@@ -55,6 +56,8 @@ struct ContentView: View {
                 .opacity(isConverterMode ? 0.35 : 1.0)
                 .contentShape(Rectangle())
                 .onTapGesture { if isConverterMode { engine.switchToLibrary() } }
+            // Podcast section
+            PodcastView(engine: engine, storage: podcastStorage)
             // Controls — disabled during preview
             Group {
                 HStack(alignment: .top, spacing: 12) {
@@ -131,6 +134,8 @@ struct ContentView: View {
                     .opacity(isConverterMode ? 0.35 : 1.0)
                     .contentShape(Rectangle())
                     .onTapGesture { if isConverterMode { engine.switchToLibrary() } }
+                // Podcast section
+                PodcastView(engine: engine, storage: podcastStorage)
                 // Controls
                 Group {
                     PresetsView(engine: engine)

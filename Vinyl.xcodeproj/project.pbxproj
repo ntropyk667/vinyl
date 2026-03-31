@@ -28,6 +28,12 @@
 		A008 /* TubeControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B008 /* TubeControlsView.swift */; };
 		A009 /* DocumentPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B009 /* DocumentPickerView.swift */; };
 		A010 /* ConverterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010 /* ConverterView.swift */; };
+		PA01 /* PodcastModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF01 /* PodcastModels.swift */; };
+		PA02 /* PodcastSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF02 /* PodcastSearch.swift */; };
+		PA03 /* RSSFeedParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF03 /* RSSFeedParser.swift */; };
+		PA04 /* PodcastStorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF04 /* PodcastStorageManager.swift */; };
+		PA05 /* PodcastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF05 /* PodcastView.swift */; };
+		PA06 /* PodcastDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF06 /* PodcastDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,6 +59,12 @@
 		ND02 /* needle_drop_2.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = needle_drop_2.wav; sourceTree = "<group>"; };
 		ND03 /* needle_drop_3.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = needle_drop_3.wav; sourceTree = "<group>"; };
 		ND04 /* needle_drop_4.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = needle_drop_4.wav; sourceTree = "<group>"; };
+		PF01 /* PodcastModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodcastModels.swift; sourceTree = "<group>"; };
+		PF02 /* PodcastSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodcastSearch.swift; sourceTree = "<group>"; };
+		PF03 /* RSSFeedParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RSSFeedParser.swift; sourceTree = "<group>"; };
+		PF04 /* PodcastStorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodcastStorageManager.swift; sourceTree = "<group>"; };
+		PF05 /* PodcastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodcastView.swift; sourceTree = "<group>"; };
+		PF06 /* PodcastDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodcastDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,6 +97,7 @@
 				D004 /* Audio */,
 				D006 /* Models */,
 				NDG1 /* NeedleDrops */,
+				PGR1 /* Podcast */,
 				931C4BCE2F7096CC0035EE0A /* a_neon_flesh.mp3 */,
 				931C4BCF2F7096CC0035EE0A /* easiness.mp3 */,
 				931C4BD02F7096CC0035EE0A /* not_srv.mp4 */,
@@ -129,6 +142,19 @@
 				B004 /* VinylModels.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		PGR1 /* Podcast */ = {
+			isa = PBXGroup;
+			children = (
+				PF01 /* PodcastModels.swift */,
+				PF02 /* PodcastSearch.swift */,
+				PF03 /* RSSFeedParser.swift */,
+				PF04 /* PodcastStorageManager.swift */,
+				PF05 /* PodcastView.swift */,
+				PF06 /* PodcastDetailView.swift */,
+			);
+			path = Podcast;
 			sourceTree = "<group>";
 		};
 		NDG1 /* NeedleDrops */ = {
@@ -231,6 +257,12 @@
 				A008 /* TubeControlsView.swift in Sources */,
 				A009 /* DocumentPickerView.swift in Sources */,
 				A010 /* ConverterView.swift in Sources */,
+				PA01 /* PodcastModels.swift in Sources */,
+				PA02 /* PodcastSearch.swift in Sources */,
+				PA03 /* RSSFeedParser.swift in Sources */,
+				PA04 /* PodcastStorageManager.swift in Sources */,
+				PA05 /* PodcastView.swift in Sources */,
+				PA06 /* PodcastDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
