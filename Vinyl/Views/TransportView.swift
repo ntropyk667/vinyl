@@ -1,56 +1,5 @@
 import SwiftUI
 
-// Modifier to disable bounce on ScrollView when at limits
-struct NoBounceAtLimitsModifier: ViewModifier {
-    var isAtLimit: Bool
-
-    func body(content: Content) -> some View {
-        content
-            .onAppear {
-                if isAtLimit {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        disableScrollViewBounce()
-                    }
-                }
-            }
-            .onChange(of: isAtLimit) { _ in
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    disableScrollViewBounce()
-                }
-            }
-    }
-
-    private func disableScrollViewBounce() {
-        guard let scrollView = findScrollView() else { return }
-        scrollView.bounces = !isAtLimit
-    }
-
-    private func findScrollView() -> UIScrollView? {
-        guard let window = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .flatMap({ $0.windows })
-            .first else { return nil }
-        return findScrollView(in: window)
-    }
-
-    private func findScrollView(in view: UIView) -> UIScrollView? {
-        if let scrollView = view as? UIScrollView {
-            return scrollView
-        }
-        for subview in view.subviews {
-            if let found = findScrollView(in: subview) {
-                return found
-            }
-        }
-        return nil
-    }
-}
-
-extension View {
-    func noBounceAtLimits(_ isAtLimit: Bool) -> some View {
-        modifier(NoBounceAtLimitsModifier(isAtLimit: isAtLimit))
-    }
-}
 
 // PreferenceKey to track item positions in the speed menu
 struct SpeedMenuPositionsPreferenceKey: PreferenceKey {
@@ -219,7 +168,7 @@ struct TransportView: View {
                         }
                         .coordinateSpace(name: "speedMenu")
                         .frame(height: 140)
-                        .noBounceAtLimits(alignedSpeed == VinylEngine.speedOptions.first || alignedSpeed == VinylEngine.speedOptions.last)
+                        .scrollDisabled(alignedSpeed == VinylEngine.speedOptions.first || alignedSpeed == VinylEngine.speedOptions.last)
                         .onPreferenceChange(SpeedMenuPositionsPreferenceKey.self) { positions in
                             // Find which item is closest to center (70px from menu top)
                             let alignmentY: CGFloat = 70
