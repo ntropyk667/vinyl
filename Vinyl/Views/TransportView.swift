@@ -103,15 +103,21 @@ struct TransportView: View {
 
                 // Speed button — menu is rendered in ContentView ZStack outside ScrollView
                 Button(action: { engine.showSpeedMenu.toggle() }) {
-                    Text(VinylEngine.speedLabel(engine.playbackSpeed))
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundColor(engine.playbackSpeed == 1.0 ? Color(hex: "5a5856") : Color(hex: "c8b89a"))
-                        .padding(.horizontal, 6).padding(.vertical, 3)
-                        .background(engine.playbackSpeed == 1.0 ? Color.clear : Color(hex: "1e1a14"))
-                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(
-                            engine.playbackSpeed == 1.0 ? Color.white.opacity(0.12) : Color(hex: "c8b89a").opacity(0.4),
-                            lineWidth: 0.5))
-                        .cornerRadius(4)
+                    ZStack {
+                        // Invisible widest label to reserve fixed width
+                        Text("0.5x")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .hidden()
+                        Text(VinylEngine.speedLabel(engine.playbackSpeed))
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundColor(Color(hex: "c8b89a"))
+                    }
+                    .padding(.horizontal, 6).padding(.vertical, 3)
+                    .background(Color(hex: "1e1a14"))
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(
+                        Color(hex: "c8b89a").opacity(0.4),
+                        lineWidth: 0.5))
+                    .cornerRadius(4)
                 }
                 .background(GeometryReader { geo in
                     Color.clear
@@ -204,7 +210,7 @@ struct SpeedMenuView: View {
                         ScrollViewReader { reader in
                             ScrollView(.vertical, showsIndicators: false) {
                                 VStack(spacing: 0) {
-                                    Color.clear.frame(height: 140)
+                                    Color.clear.frame(height: 56)
                                     ForEach(VinylEngine.speedOptions.reversed(), id: \.self) { speed in
                                         GeometryReader { geo in
                                             Button(action: {
@@ -224,7 +230,7 @@ struct SpeedMenuView: View {
                                         .frame(height: 28)
                                         .id(speed)
                                     }
-                                    Color.clear.frame(height: 140)
+                                    Color.clear.frame(height: 56)
                                 }
                             }
                             .coordinateSpace(name: "speedMenu")
@@ -234,6 +240,14 @@ struct SpeedMenuView: View {
                                 if let closest = positions.min(by: { abs($0.value - alignmentY) < abs($1.value - alignmentY) })?.key,
                                    closest != alignedSpeed {
                                     alignedSpeed = closest
+                                    // Snap to center after a brief settling delay
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        if alignedSpeed == closest {
+                                            withAnimation(.easeOut(duration: 0.2)) {
+                                                reader.scrollTo(closest, anchor: .center)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             .onChange(of: engine.playbackSpeed) { newSpeed in
