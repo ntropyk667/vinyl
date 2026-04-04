@@ -4,6 +4,7 @@ struct TransportView: View {
     @ObservedObject var engine: VinylEngine
     @State private var isSeeking = false
     @State private var seekValue: Double = 0
+    @State private var alignedSpeed: Float = 1.0
 
     /// Needle drop offset in seconds
     private var ndOffset: Double {
@@ -119,6 +120,9 @@ struct TransportView: View {
                 VStack(spacing: 0) {
                     // Up arrow indicator
                     Image(systemName: "chevron.up")
+                        .onAppear {
+                            alignedSpeed = engine.playbackSpeed
+                        }
                         .font(.system(size: 8, weight: .semibold))
                         .foregroundColor(Color(hex: "5a5856"))
                         .frame(height: 14)
@@ -128,17 +132,32 @@ struct TransportView: View {
                         ScrollView {
                             VStack(spacing: 0) {
                                 ForEach(VinylEngine.speedOptions.reversed(), id: \.self) { speed in
-                                    Button(action: {
-                                        engine.setSpeed(speed)
-                                        engine.showSpeedMenu = false
-                                    }) {
-                                        Text(VinylEngine.speedLabel(speed))
-                                            .font(.system(size: 11, weight: engine.playbackSpeed == speed ? .bold : .semibold, design: .monospaced))
-                                            .foregroundColor(engine.playbackSpeed == speed ? Color(hex: "c8b89a") : Color(hex: "5a5856"))
-                                            .frame(maxWidth: .infinity)
-                                            .frame(height: 28)
-                                            .background(engine.playbackSpeed == speed ? Color(hex: "1e1a14") : Color.clear)
+                                    GeometryReader { geo in
+                                        Button(action: {
+                                            engine.setSpeed(speed)
+                                            engine.showSpeedMenu = false
+                                        }) {
+                                            Text(VinylEngine.speedLabel(speed))
+                                                .font(.system(size: 11, weight: alignedSpeed == speed ? .bold : .semibold, design: .monospaced))
+                                                .foregroundColor(alignedSpeed == speed ? Color(hex: "c8b89a") : Color(hex: "5a5856"))
+                                                .frame(maxWidth: .infinity)
+                                                .frame(height: 28)
+                                                .background(alignedSpeed == speed ? Color(hex: "1e1a14") : Color.clear)
+                                        }
+                                        .onAppear {
+                                            let itemCenter = geo.frame(in: .local).midY
+                                            if abs(itemCenter - 70) < 14 {
+                                                alignedSpeed = speed
+                                            }
+                                        }
+                                        .onChange(of: geo.frame(in: .local).midY) { _ in
+                                            let itemCenter = geo.frame(in: .local).midY
+                                            if abs(itemCenter - 70) < 14 {
+                                                alignedSpeed = speed
+                                            }
+                                        }
                                     }
+                                    .frame(height: 28)
                                     .id(speed)
                                 }
                             }
@@ -147,10 +166,12 @@ struct TransportView: View {
                         .onChange(of: engine.playbackSpeed) { newSpeed in
                             withAnimation {
                                 reader.scrollTo(newSpeed, anchor: .center)
+                                alignedSpeed = newSpeed
                             }
                         }
                         .onAppear {
                             reader.scrollTo(engine.playbackSpeed, anchor: .center)
+                            alignedSpeed = engine.playbackSpeed
                         }
                     }
                     Image(systemName: "chevron.down")
@@ -168,6 +189,7 @@ struct TransportView: View {
         }
         .onTapGesture {
             if engine.showSpeedMenu {
+                engine.setSpeed(alignedSpeed)
                 engine.showSpeedMenu = false
             }
         }
