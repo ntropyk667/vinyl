@@ -172,12 +172,28 @@ struct TransportView: View {
                         }
                         .onChange(of: engine.playbackSpeed) { newSpeed in
                             withAnimation {
-                                reader.scrollTo(newSpeed, anchor: .center)
+                                // For extreme values, scroll to top/bottom instead of centering
+                                // to avoid bouncing. Center for middle values.
+                                let reversedOptions = VinylEngine.speedOptions.reversed()
+                                if newSpeed == reversedOptions.first {
+                                    reader.scrollTo(newSpeed, anchor: .top)
+                                } else if newSpeed == reversedOptions.last {
+                                    reader.scrollTo(newSpeed, anchor: .bottom)
+                                } else {
+                                    reader.scrollTo(newSpeed, anchor: .center)
+                                }
                                 alignedSpeed = newSpeed
                             }
                         }
                         .onAppear {
-                            reader.scrollTo(engine.playbackSpeed, anchor: .center)
+                            let reversedOptions = VinylEngine.speedOptions.reversed()
+                            if engine.playbackSpeed == reversedOptions.first {
+                                reader.scrollTo(engine.playbackSpeed, anchor: .top)
+                            } else if engine.playbackSpeed == reversedOptions.last {
+                                reader.scrollTo(engine.playbackSpeed, anchor: .bottom)
+                            } else {
+                                reader.scrollTo(engine.playbackSpeed, anchor: .center)
+                            }
                             alignedSpeed = engine.playbackSpeed
                         }
                     }
