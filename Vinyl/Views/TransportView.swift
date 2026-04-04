@@ -14,6 +14,7 @@ struct TransportView: View {
     @State private var isSeeking = false
     @State private var seekValue: Double = 0
     @State private var alignedSpeed: Float = 1.0
+    @State private var isAtScrollLimit = false
 
     /// Needle drop offset in seconds
     private var ndOffset: Double {
@@ -168,12 +169,15 @@ struct TransportView: View {
                         }
                         .coordinateSpace(name: "speedMenu")
                         .frame(height: 140)
+                        .scrollDisabled(isAtScrollLimit)
                         .onPreferenceChange(SpeedMenuPositionsPreferenceKey.self) { positions in
                             // Find which item is closest to center (70px from menu top)
                             let alignmentY: CGFloat = 70
                             if let closestSpeed = positions.min(by: { abs($0.value - alignmentY) < abs($1.value - alignmentY) })?.key {
                                 if alignedSpeed != closestSpeed {
                                     alignedSpeed = closestSpeed
+                                    // Lock scroll when at extreme values
+                                    isAtScrollLimit = (closestSpeed == VinylEngine.speedOptions.first || closestSpeed == VinylEngine.speedOptions.last)
                                 }
                             }
                         }
