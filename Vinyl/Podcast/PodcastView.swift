@@ -12,7 +12,7 @@ struct PodcastView: View {
         VStack(alignment: .leading, spacing: 6) {
             SectionLabel("podcasts")
 
-            // Search bar
+            // Search bar with clear button
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
@@ -24,6 +24,17 @@ struct PodcastView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .onSubmit { searcher.search(searchText) }
+                    if !searchText.isEmpty {
+                        Button(action: {
+                            searchText = ""
+                            searcher.results = []
+                            searcher.errorMessage = nil
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 13))
+                                .foregroundColor(Color(hex: "5a5856"))
+                        }
+                    }
                 }
                 .padding(.horizontal, 10).padding(.vertical, 8)
                 .background(Color(hex: "161616"))
@@ -56,20 +67,43 @@ struct PodcastView: View {
                     .padding(.horizontal, 10)
             }
 
-            // Subscribed podcasts
+            // Subscribed podcasts — icon grid
             if !storage.subscriptions.isEmpty && searchText.isEmpty {
                 Text("subscribed")
                     .font(.system(size: 9, design: .monospaced))
-                    .foregroundColor(Color(hex: "5a5856")).kerning(1.2)
+                    .foregroundColor(.white).kerning(1.2)
                     .padding(.top, 4)
 
-                ForEach(storage.subscriptions) { sub in
-                    Button(action: {
-                        selectedSubscription = sub
-                    }) {
-                        PodcastRow(name: sub.name, artist: sub.artist, artworkURL: sub.artworkURL)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 52, maximum: 64), spacing: 8)], spacing: 8) {
+                    ForEach(storage.subscriptions) { sub in
+                        Button(action: {
+                            selectedSubscription = sub
+                        }) {
+                            VStack(spacing: 3) {
+                                AsyncImage(url: URL(string: sub.artworkURL)) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image.resizable().aspectRatio(contentMode: .fill)
+                                    case .failure:
+                                        Rectangle().fill(Color(hex: "1e1e1e"))
+                                            .overlay(Image(systemName: "mic.fill").foregroundColor(Color(hex: "5a5856")).font(.system(size: 14)))
+                                    default:
+                                        Rectangle().fill(Color(hex: "1e1e1e"))
+                                    }
+                                }
+                                .frame(width: 52, height: 52)
+                                .cornerRadius(6)
+
+                                Text(sub.name)
+                                    .font(.system(size: 8, design: .monospaced))
+                                    .foregroundColor(Color(hex: "9a9690"))
+                                    .lineLimit(1)
+                                    .frame(width: 52)
+                            }
+                        }
                     }
                 }
+                .padding(.vertical, 4)
             }
 
             // Search results
@@ -102,7 +136,8 @@ struct PodcastView: View {
                 feedURL: podcast.feedURL,
                 podcastName: podcast.name,
                 artist: podcast.artist,
-                artworkURL: podcast.artworkURL
+                artworkURL: podcast.artworkURL,
+                onDismissAction: { clearSearchResults() }
             )
         }
         .sheet(item: $selectedSubscription) { sub in
@@ -112,9 +147,16 @@ struct PodcastView: View {
                 feedURL: sub.feedURL,
                 podcastName: sub.name,
                 artist: sub.artist,
-                artworkURL: sub.artworkURL
+                artworkURL: sub.artworkURL,
+                onDismissAction: { clearSearchResults() }
             )
         }
+    }
+
+    private func clearSearchResults() {
+        searchText = ""
+        searcher.results = []
+        searcher.errorMessage = nil
     }
 }
 

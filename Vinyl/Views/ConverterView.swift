@@ -5,27 +5,48 @@ struct ConverterView: View {
     @ObservedObject var engine: VinylEngine
     @State private var showLoadPicker = false
     @State private var showShareSheet = false
+    @State private var isExpanded = false
+
+    private var isActive: Bool {
+        engine.converterSourceLoaded || engine.isConverting || engine.isPreviewing || engine.hasConvertedFile
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SectionLabel("converter")
-            statusLine
-            HStack(spacing: 6) {
-                converterButton(label: "load", icon: "doc.badge.plus", enabled: !engine.isConverting && !engine.isPreviewing) {
-                    showLoadPicker = true
-                }
-                converterButton(label: "convert", icon: "waveform.path", enabled: engine.converterSourceLoaded && !engine.isConverting && !engine.isPreviewing) {
-                    engine.performOfflineRender()
-                }
-                converterButton(label: engine.isPreviewing ? "stop" : "preview", icon: engine.isPreviewing ? "stop.fill" : "play.fill", enabled: engine.hasConvertedFile && !engine.isConverting) {
-                    if engine.isPreviewing { engine.stopPreview() } else { engine.previewConverted() }
-                }
-                converterButton(label: "save", icon: "square.and.arrow.up", enabled: engine.hasConvertedFile && !engine.isConverting && !engine.isPreviewing) {
-                    showShareSheet = true
+            // Tappable header row with chevron
+            Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() } }) {
+                HStack {
+                    SectionLabel("converter")
+                    Spacer()
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.white)
                 }
             }
-            if engine.isConverting {
-                convertProgressBar
+            .buttonStyle(.plain)
+            .onChange(of: isActive) { active in
+                if active && !isExpanded { withAnimation(.easeInOut(duration: 0.2)) { isExpanded = true } }
+            }
+
+            if isExpanded {
+                statusLine
+                HStack(spacing: 6) {
+                    converterButton(label: "load", icon: "doc.badge.plus", enabled: !engine.isConverting && !engine.isPreviewing) {
+                        showLoadPicker = true
+                    }
+                    converterButton(label: "convert", icon: "waveform.path", enabled: engine.converterSourceLoaded && !engine.isConverting && !engine.isPreviewing) {
+                        engine.performOfflineRender()
+                    }
+                    converterButton(label: engine.isPreviewing ? "stop" : "preview", icon: engine.isPreviewing ? "stop.fill" : "play.fill", enabled: engine.hasConvertedFile && !engine.isConverting) {
+                        if engine.isPreviewing { engine.stopPreview() } else { engine.previewConverted() }
+                    }
+                    converterButton(label: "save", icon: "square.and.arrow.up", enabled: engine.hasConvertedFile && !engine.isConverting && !engine.isPreviewing) {
+                        showShareSheet = true
+                    }
+                }
+                if engine.isConverting {
+                    convertProgressBar
+                }
             }
         }
         .sheet(isPresented: $showLoadPicker) {

@@ -40,7 +40,7 @@ extension VinylPreset {
     static let era78rpm = VinylPreset(id:"78rpm", name:"78 rpm era", description:"pre-war shellac sound", params:{ var p = VinylParameters(); p.wear=60; p.masterIntensity=70; p.wowDepth=35; p.flutter=45; p.warpWow=15; p.speedDrift=25; p.trackingWeight=50; p.crackle=60; p.hiss=80; p.rumble=50; p.pressedNoise=80; p.hfRolloff=85; p.saturation=80; p.riaaVariance=70; p.stereoWidth=20; p.innerGrooveDistortion=70; p.azimuthError=30; p.roomResonance=60; return p }())
 }
 
-struct SampleTrack: Identifiable {
+struct SampleTrack: Identifiable, Equatable {
     let id: String
     let title: String
     let artist: String

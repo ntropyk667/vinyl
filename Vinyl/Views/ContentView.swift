@@ -56,7 +56,7 @@ struct ContentView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { if !isConverterMode { engine.switchToConverter() } }
             // Sample library section
-            SampleLibraryView(engine: engine)
+            SampleLibraryView(engine: engine).equatable()
                 .disabled(isConverterMode)
                 .opacity(isConverterMode ? 0.35 : 1.0)
                 .contentShape(Rectangle())
@@ -68,13 +68,21 @@ struct ContentView: View {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(spacing: 8) {
                         TubeControlsView(engine: engine)
+                            .disabled(engine.isBypassed)
+                            .opacity(engine.isBypassed ? 0.35 : 1.0)
                         portraitBypass
                     }
                     .frame(width: 130)
                     PresetsView(engine: engine)
+                        .disabled(engine.isBypassed)
+                        .opacity(engine.isBypassed ? 0.35 : 1.0)
                 }
                 MasterControlsView(engine: engine)
+                    .disabled(engine.isBypassed)
+                    .opacity(engine.isBypassed ? 0.35 : 1.0)
                 EffectSectionsView(engine: engine)
+                    .disabled(engine.isBypassed)
+                    .opacity(engine.isBypassed ? 0.35 : 1.0)
             }
             .disabled(engine.isPreviewing)
             .opacity(engine.isPreviewing ? 0.4 : 1.0)
@@ -89,7 +97,7 @@ struct ContentView: View {
             Button(action: { engine.toggleBypass() }) {
                 Text(engine.isBypassed ? "enable effects" : "bypass effects")
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(engine.isBypassed ? Color(hex: "5a5856") : Color(hex: "9a9690"))
+                    .foregroundColor(Color(hex: "9a9690"))
                     .padding(.horizontal, 10).padding(.vertical, 7)
                     .frame(maxWidth: .infinity)
                     .background(Color(hex: "161616"))
@@ -97,10 +105,10 @@ struct ContentView: View {
                     .cornerRadius(6)
             }
             HStack(spacing: 5) {
-                Circle().fill(engine.isBypassed ? Color(hex: "5a5856") : Color(hex: "5a9a78")).frame(width: 6, height: 6)
+                Circle().fill(engine.isBypassed ? Color(hex: "5a9a78") : Color(hex: "5a9a78")).frame(width: 6, height: 6)
                 Text(engine.isBypassed ? "bypassed" : "vinyl on")
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(Color(hex: "5a5856"))
+                    .foregroundColor(Color(hex: "9a9690"))
             }
             .padding(.horizontal, 8).padding(.vertical, 4)
             .frame(maxWidth: .infinity)
@@ -134,7 +142,7 @@ struct ContentView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { if !isConverterMode { engine.switchToConverter() } }
                 // Sample library section
-                SampleLibraryView(engine: engine)
+                SampleLibraryView(engine: engine).equatable()
                     .disabled(isConverterMode)
                     .opacity(isConverterMode ? 0.35 : 1.0)
                     .contentShape(Rectangle())
@@ -144,8 +152,14 @@ struct ContentView: View {
                 // Controls
                 Group {
                     PresetsView(engine: engine)
+                        .disabled(engine.isBypassed)
+                        .opacity(engine.isBypassed ? 0.35 : 1.0)
                     MasterControlsView(engine: engine)
+                        .disabled(engine.isBypassed)
+                        .opacity(engine.isBypassed ? 0.35 : 1.0)
                     EffectSectionsView(engine: engine)
+                        .disabled(engine.isBypassed)
+                        .opacity(engine.isBypassed ? 0.35 : 1.0)
                 }
                 .disabled(engine.isPreviewing)
                 .opacity(engine.isPreviewing ? 0.4 : 1.0)
@@ -160,7 +174,10 @@ struct HeaderView: View {
     @Binding var showSettings: Bool
     var body: some View {
         HStack(alignment: .lastTextBaseline, spacing: 10) {
-            Text("Vinyl").font(.custom("Georgia", size: 22)).foregroundColor(Color(hex: "e8e6e0"))
+            HStack(spacing: 0) {
+                Text("V").font(.system(size: 22, weight: .bold)).foregroundColor(.white)
+                Text("ynl").font(.system(size: 22, weight: .bold)).foregroundColor(Color(hex: "FF9500"))
+            }
             Text("analog emulation").font(.system(size: 11, design: .monospaced)).foregroundColor(Color(hex: "5a5856")).kerning(1.2)
             Spacer()
             Button(action: { showSettings = true }) {
@@ -179,15 +196,15 @@ struct BypassButton: View {
             Button(action: { engine.toggleBypass() }) {
                 Text(engine.isBypassed ? "enable effects" : "bypass effects")
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(engine.isBypassed ? Color(hex: "5a5856") : Color(hex: "9a9690"))
+                    .foregroundColor(Color(hex: "9a9690"))
                     .padding(.horizontal, 14).padding(.vertical, 7)
                     .background(Color(hex: "161616"))
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.14), lineWidth: 0.5))
                     .cornerRadius(6)
             }
             HStack(spacing: 6) {
-                Circle().fill(engine.isBypassed ? Color(hex: "5a5856") : Color(hex: "5a9a78")).frame(width: 6, height: 6)
-                Text(engine.isBypassed ? "bypassed" : "vinyl on").font(.system(size: 11, design: .monospaced)).foregroundColor(Color(hex: "5a5856"))
+                Circle().fill(Color(hex: "5a9a78")).frame(width: 6, height: 6)
+                Text(engine.isBypassed ? "bypassed" : "vinyl on").font(.system(size: 11, design: .monospaced)).foregroundColor(Color(hex: "9a9690"))
             }
             .padding(.horizontal, 10).padding(.vertical, 4)
             .background(Color(hex: "161616"))

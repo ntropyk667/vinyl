@@ -1,7 +1,10 @@
 import SwiftUI
 
-struct SampleLibraryView: View {
-    @ObservedObject var engine: VinylEngine
+struct SampleLibraryView: View, Equatable {
+    var engine: VinylEngine
+    static func == (lhs: SampleLibraryView, rhs: SampleLibraryView) -> Bool {
+        lhs.engine.currentTrack?.id == rhs.engine.currentTrack?.id
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             SectionLabel("sample library")
@@ -13,20 +16,28 @@ struct SampleLibraryView: View {
                     }
                 }
             } label: {
-                HStack {
-                    Text(menuLabel).font(.system(size: 11, design: .monospaced)).foregroundColor(Color(hex: "e8e6e0"))
-                    Spacer()
-                    Image(systemName: "chevron.down").font(.system(size: 10)).foregroundColor(Color(hex: "5a5856"))
-                }
-                .padding(.horizontal, 10).padding(.vertical, 9)
-                .background(Color(hex: "161616"))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08), lineWidth: 0.5))
-                .cornerRadius(6)
+                SampleLibraryLabel(track: engine.currentTrack)
             }
         }
     }
+}
+
+/// Extracted so it only re-renders when `track` changes, not on every currentTime tick
+private struct SampleLibraryLabel: View {
+    let track: SampleTrack?
+    var body: some View {
+        HStack {
+            Text(menuLabel).font(.system(size: 11, design: .monospaced)).foregroundColor(Color(hex: "e8e6e0"))
+            Spacer()
+            Image(systemName: "chevron.down").font(.system(size: 10)).foregroundColor(Color(hex: "5a5856"))
+        }
+        .padding(.horizontal, 10).padding(.vertical, 9)
+        .background(Color(hex: "161616"))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08), lineWidth: 0.5))
+        .cornerRadius(6)
+    }
     private var menuLabel: String {
-        guard let t = engine.currentTrack else { return "— select a track —" }
+        guard let t = track else { return "— select a track —" }
         let p = VinylPreset.all.first(where: { $0.id == t.defaultPresetID })?.name ?? ""
         return "\(t.title) — \(t.artist) [\(p)]"
     }
@@ -210,7 +221,7 @@ struct EffectSlider: View {
 struct AmpSubLabel: View {
     let text: String; init(_ text: String) { self.text = text }
     var body: some View {
-        Text(text.uppercased()).font(.system(size: 9, design: .monospaced)).foregroundColor(Color(hex: "5a5856")).kerning(1.2)
+        Text(text.uppercased()).font(.system(size: 9, design: .monospaced)).foregroundColor(.white).kerning(1.2)
             .padding(.bottom, 2).frame(maxWidth: .infinity, alignment: .leading)
             .overlay(Divider().opacity(0.15), alignment: .bottom)
     }
@@ -219,6 +230,6 @@ struct AmpSubLabel: View {
 struct SectionLabel: View {
     let text: String; init(_ text: String) { self.text = text }
     var body: some View {
-        Text(text.uppercased()).font(.system(size: 9, design: .monospaced)).foregroundColor(Color(hex: "5a5856")).kerning(1.2)
+        Text(text.uppercased()).font(.system(size: 9, design: .monospaced)).foregroundColor(.white).kerning(1.2)
     }
 }
