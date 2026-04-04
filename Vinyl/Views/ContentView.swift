@@ -20,6 +20,7 @@ struct ContentView: View {
                         }
                     }
                 }
+                .scrollDisabled(engine.showSpeedMenu)
             }
         }
         .sheet(isPresented: $showFilePicker) {

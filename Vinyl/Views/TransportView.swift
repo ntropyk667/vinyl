@@ -170,7 +170,6 @@ struct TransportView: View {
                         .coordinateSpace(name: "speedMenu")
                         .frame(height: 140)
                         .scrollDisabled(isAtScrollLimit)
-                        .contentShape(Rectangle())
                         .onPreferenceChange(SpeedMenuPositionsPreferenceKey.self) { positions in
                             // Find which item is closest to center (70px from menu top)
                             let alignmentY: CGFloat = 70
@@ -206,12 +205,6 @@ struct TransportView: View {
                 .cornerRadius(6)
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 2)
                 .offset(x: -10, y: 0)
-                .contentShape(Rectangle())
-                .simultaneousGesture(
-                    DragGesture()
-                        .onChanged { _ in }
-                        .onEnded { _ in }
-                )
             }
         }
         .onTapGesture {
