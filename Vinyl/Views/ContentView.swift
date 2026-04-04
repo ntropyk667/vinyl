@@ -26,7 +26,6 @@ struct ContentView: View {
                 // Dismiss layer and positioning handled inside SpeedMenuView
                 SpeedMenuView(engine: engine)
             }
-            .coordinateSpace(name: "appZStack")
         }
         .sheet(isPresented: $showFilePicker) {
             DocumentPickerView { url in
