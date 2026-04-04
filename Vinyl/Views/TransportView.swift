@@ -143,7 +143,7 @@ struct TransportView: View {
                                 }
                             }
                         }
-                        .frame(height: 168)
+                        .frame(height: 140)
                         .onChange(of: engine.playbackSpeed) { newSpeed in
                             withAnimation {
                                 reader.scrollTo(newSpeed, anchor: .center)
