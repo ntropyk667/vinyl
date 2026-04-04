@@ -22,19 +22,11 @@ struct ContentView: View {
                 }
                 .allowsHitTesting(!engine.showSpeedMenu)
 
-                // When menu is open: transparent layer captures taps outside menu
-                if engine.showSpeedMenu {
-                    Color.black.opacity(0.001)
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            engine.setSpeed(engine.playbackSpeed)
-                            engine.showSpeedMenu = false
-                        }
-                }
-
                 // Speed menu lives outside ScrollView — no gesture conflicts
+                // Dismiss layer and positioning handled inside SpeedMenuView
                 SpeedMenuView(engine: engine)
             }
+            .coordinateSpace(name: "appZStack")
         }
         .sheet(isPresented: $showFilePicker) {
             DocumentPickerView { url in

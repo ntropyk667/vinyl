@@ -115,8 +115,8 @@ struct TransportView: View {
                 }
                 .background(GeometryReader { geo in
                     Color.clear
-                        .onAppear { engine.speedButtonFrame = geo.frame(in: .global) }
-                        .onChange(of: geo.frame(in: .global)) { engine.speedButtonFrame = $0 }
+                        .onAppear { engine.speedButtonFrame = geo.frame(in: .named("appZStack")) }
+                        .onChange(of: geo.frame(in: .named("appZStack"))) { engine.speedButtonFrame = $0 }
                 })
             }
             .frame(maxWidth: .infinity)
@@ -179,72 +179,82 @@ struct SpeedMenuView: View {
     var body: some View {
         if engine.showSpeedMenu {
             let btnFrame = engine.speedButtonFrame
-            VStack(spacing: 0) {
-                Image(systemName: "chevron.up")
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundColor(Color(hex: "5a5856"))
-                    .frame(height: 14)
-                    .onAppear { alignedSpeed = engine.playbackSpeed }
+            ZStack {
+                // Dismiss layer — covers full area, taps outside menu close it
+                Color.black.opacity(0.001)
+                    .onTapGesture {
+                        engine.setSpeed(alignedSpeed)
+                        engine.showSpeedMenu = false
+                    }
 
-                ScrollViewReader { reader in
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            Color.clear.frame(height: 140)
-                            ForEach(VinylEngine.speedOptions.reversed(), id: \.self) { speed in
-                                GeometryReader { geo in
-                                    Button(action: {
-                                        engine.setSpeed(speed)
-                                        engine.showSpeedMenu = false
-                                    }) {
-                                        Text(VinylEngine.speedLabel(speed))
-                                            .font(.system(size: 11, weight: alignedSpeed == speed ? .bold : .semibold, design: .monospaced))
-                                            .foregroundColor(alignedSpeed == speed ? Color(hex: "c8b89a") : Color(hex: "5a5856"))
-                                            .frame(maxWidth: .infinity)
-                                            .frame(height: 28)
-                                            .background(alignedSpeed == speed ? Color(hex: "1e1a14") : Color.clear)
+                // Menu card — on top of dismiss layer in this ZStack
+                VStack(spacing: 0) {
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(Color(hex: "5a5856"))
+                        .frame(height: 14)
+                        .onAppear { alignedSpeed = engine.playbackSpeed }
+
+                    ScrollViewReader { reader in
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                Color.clear.frame(height: 140)
+                                ForEach(VinylEngine.speedOptions.reversed(), id: \.self) { speed in
+                                    GeometryReader { geo in
+                                        Button(action: {
+                                            engine.setSpeed(speed)
+                                            engine.showSpeedMenu = false
+                                        }) {
+                                            Text(VinylEngine.speedLabel(speed))
+                                                .font(.system(size: 11, weight: alignedSpeed == speed ? .bold : .semibold, design: .monospaced))
+                                                .foregroundColor(alignedSpeed == speed ? Color(hex: "c8b89a") : Color(hex: "5a5856"))
+                                                .frame(maxWidth: .infinity)
+                                                .frame(height: 28)
+                                                .background(alignedSpeed == speed ? Color(hex: "1e1a14") : Color.clear)
+                                        }
+                                        .preference(key: SpeedMenuPositionsPreferenceKey.self,
+                                                    value: [speed: geo.frame(in: .named("speedMenu")).midY])
                                     }
-                                    .preference(key: SpeedMenuPositionsPreferenceKey.self,
-                                                value: [speed: geo.frame(in: .named("speedMenu")).midY])
+                                    .frame(height: 28)
+                                    .id(speed)
                                 }
-                                .frame(height: 28)
-                                .id(speed)
+                                Color.clear.frame(height: 140)
                             }
-                            Color.clear.frame(height: 140)
+                        }
+                        .coordinateSpace(name: "speedMenu")
+                        .frame(height: 140)
+                        .scrollDisabled(isAtScrollLimit)
+                        .onPreferenceChange(SpeedMenuPositionsPreferenceKey.self) { positions in
+                            let alignmentY: CGFloat = 70
+                            if let closest = positions.min(by: { abs($0.value - alignmentY) < abs($1.value - alignmentY) })?.key,
+                               closest != alignedSpeed {
+                                alignedSpeed = closest
+                                isAtScrollLimit = closest == VinylEngine.speedOptions.first || closest == VinylEngine.speedOptions.last
+                            }
+                        }
+                        .onChange(of: engine.playbackSpeed) { newSpeed in
+                            withAnimation { reader.scrollTo(newSpeed, anchor: .center) }
+                            alignedSpeed = newSpeed
+                        }
+                        .onAppear {
+                            reader.scrollTo(engine.playbackSpeed, anchor: .center)
+                            alignedSpeed = engine.playbackSpeed
                         }
                     }
-                    .coordinateSpace(name: "speedMenu")
-                    .frame(height: 140)
-                    .scrollDisabled(isAtScrollLimit)
-                    .onPreferenceChange(SpeedMenuPositionsPreferenceKey.self) { positions in
-                        let alignmentY: CGFloat = 70
-                        if let closest = positions.min(by: { abs($0.value - alignmentY) < abs($1.value - alignmentY) })?.key,
-                           closest != alignedSpeed {
-                            alignedSpeed = closest
-                            isAtScrollLimit = closest == VinylEngine.speedOptions.first || closest == VinylEngine.speedOptions.last
-                        }
-                    }
-                    .onChange(of: engine.playbackSpeed) { newSpeed in
-                        withAnimation { reader.scrollTo(newSpeed, anchor: .center) }
-                        alignedSpeed = newSpeed
-                    }
-                    .onAppear {
-                        reader.scrollTo(engine.playbackSpeed, anchor: .center)
-                        alignedSpeed = engine.playbackSpeed
-                    }
-                }
 
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundColor(Color(hex: "5a5856"))
-                    .frame(height: 14)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(Color(hex: "5a5856"))
+                        .frame(height: 14)
+                }
+                .frame(width: 56)
+                .background(Color(hex: "1a1a1a"))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.12), lineWidth: 0.5))
+                .cornerRadius(6)
+                .shadow(color: .black.opacity(0.5), radius: 6, y: 2)
+                // center x = maxX - 28 puts right edge flush with button right edge
+                .position(x: btnFrame.maxX - 28, y: btnFrame.midY)
             }
-            .frame(width: 56)
-            .background(Color(hex: "1a1a1a"))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.12), lineWidth: 0.5))
-            .cornerRadius(6)
-            .shadow(color: .black.opacity(0.5), radius: 6, y: 2)
-            // Align menu right edge with button right edge, vertically centered on button
-            .position(x: btnFrame.maxX - 38, y: btnFrame.midY)
         }
     }
 }
