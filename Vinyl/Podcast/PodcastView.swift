@@ -10,8 +10,6 @@ struct PodcastView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SectionLabel("podcasts")
-
             // Search bar with clear button
             HStack(spacing: 8) {
                 HStack(spacing: 6) {

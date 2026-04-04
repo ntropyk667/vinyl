@@ -1,10 +1,14 @@
 import SwiftUI
 
+enum AppSection { case converter, library, podcast }
+
 struct ContentView: View {
     @StateObject private var engine = VinylEngine()
     @StateObject private var podcastStorage = PodcastStorageManager()
     @State private var showFilePicker = false
     @State private var showSettings = false
+    @State private var expandedSection: AppSection? = nil
+    @State private var tabRowHeight: CGFloat = 34
 
     var body: some View {
         GeometryReader { geo in
@@ -37,33 +41,83 @@ struct ContentView: View {
             SettingsView()
         }
         .onAppear {
-            if let france = SampleTrack.library.first(where: { $0.id == "france" }) {
-                engine.loadTrack(france)
+            if let sagan = SampleTrack.library.first(where: { $0.id == "sagan" }) {
+                engine.loadTrack(sagan)
             }
         }
     }
 
     private var isConverterMode: Bool { engine.activeMode == .converter }
 
+    private func sectionTab(_ label: String, section: AppSection) -> some View {
+        let isActive = expandedSection == section
+        return Button(action: {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                expandedSection = isActive ? nil : section
+            }
+        }) {
+            HStack(spacing: 4) {
+                Text(label.uppercased())
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white)
+                    .kerning(1.0)
+                Spacer()
+                Image(systemName: isActive ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 8).padding(.vertical, 7)
+            .background(isActive ? Color(hex: "1e1a14") : Color(hex: "161616"))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(
+                isActive ? Color(hex: "c8b89a").opacity(0.4) : Color.white.opacity(0.08),
+                lineWidth: 0.5))
+            .cornerRadius(6)
+        }
+    }
+
     // Portrait: transport + converter + library full-width, then tubes/bypass | presets side-by-side
     private var portraitContent: some View {
         VStack(spacing: 10) {
             TransportView(engine: engine)
-            // Converter section
-            ConverterView(engine: engine)
-                .disabled(!isConverterMode)
-                .opacity(!isConverterMode ? 0.35 : 1.0)
-                .contentShape(Rectangle())
-                .onTapGesture { if !isConverterMode { engine.switchToConverter() } }
-            // Sample library section
-            SampleLibraryView(engine: engine).equatable()
-                .disabled(isConverterMode)
-                .opacity(isConverterMode ? 0.35 : 1.0)
-                .contentShape(Rectangle())
-                .onTapGesture { if isConverterMode { engine.switchToLibrary() } }
-            // Podcast section
-            PodcastView(engine: engine, storage: podcastStorage)
-            // Controls — disabled during preview
+            // Section tab row
+            HStack(spacing: 6) {
+                sectionTab("converter", section: .converter)
+                sectionTab("library", section: .library)
+                sectionTab("podcasts", section: .podcast)
+            }
+            .background(GeometryReader { geo in
+                Color.clear.onAppear { tabRowHeight = geo.size.height }
+                              .onChange(of: geo.size.height) { tabRowHeight = $0 }
+            })
+            .onChange(of: engine.converterSourceLoaded) { loaded in
+                if loaded { withAnimation(.easeInOut(duration: 0.2)) { expandedSection = .converter } }
+            }
+            // Converter and podcasts expand inline — effects still usable
+            if expandedSection == .converter {
+                ConverterView(engine: engine)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            if expandedSection == .podcast {
+                PodcastView(engine: engine, storage: podcastStorage)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            // Library overlays content below (just picking a track, no effects needed)
+            if expandedSection == .library {
+                Color.clear.frame(height: 0)
+                    .zIndex(10)
+                    .overlay(alignment: .top) {
+                        SampleLibraryView(engine: engine, onSelect: {
+                            withAnimation(.easeInOut(duration: 0.2)) { expandedSection = nil }
+                        }).equatable()
+                            .background(Color(hex: "0e0e0e"))
+                            .shadow(color: .black.opacity(0.6), radius: 8, y: 4)
+                            .offset(y: 6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .zIndex(10)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+            }
+            // Controls — disabled during preview or when library is open
             Group {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(spacing: 8) {
@@ -84,8 +138,8 @@ struct ContentView: View {
                     .disabled(engine.isBypassed)
                     .opacity(engine.isBypassed ? 0.35 : 1.0)
             }
-            .disabled(engine.isPreviewing)
-            .opacity(engine.isPreviewing ? 0.4 : 1.0)
+            .disabled(engine.isPreviewing || expandedSection == .library)
+            .opacity(engine.isPreviewing ? 0.4 : expandedSection == .library ? 0.35 : 1.0)
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 40)
@@ -142,7 +196,9 @@ struct ContentView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { if !isConverterMode { engine.switchToConverter() } }
                 // Sample library section
-                SampleLibraryView(engine: engine).equatable()
+                SampleLibraryView(engine: engine, onSelect: {
+                            withAnimation(.easeInOut(duration: 0.2)) { expandedSection = nil }
+                        }).equatable()
                     .disabled(isConverterMode)
                     .opacity(isConverterMode ? 0.35 : 1.0)
                     .contentShape(Rectangle())

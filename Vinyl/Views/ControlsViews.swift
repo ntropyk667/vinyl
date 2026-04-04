@@ -2,44 +2,67 @@ import SwiftUI
 
 struct SampleLibraryView: View, Equatable {
     var engine: VinylEngine
+    var onSelect: (() -> Void)? = nil
     static func == (lhs: SampleLibraryView, rhs: SampleLibraryView) -> Bool {
-        lhs.engine.currentTrack?.id == rhs.engine.currentTrack?.id
+        lhs.engine.currentTrack?.id == rhs.engine.currentTrack?.id &&
+        lhs.engine.convertedFiles.map(\.lastPathComponent) == rhs.engine.convertedFiles.map(\.lastPathComponent)
     }
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SectionLabel("sample library")
-            Menu {
-                ForEach(SampleTrack.library) { track in
-                    let presetName = VinylPreset.all.first(where: { $0.id == track.defaultPresetID })?.name ?? ""
-                    Button("\(track.title) — \(track.artist) [\(presetName)]") {
-                        engine.loadTrack(track)
+        VStack(spacing: 4) {
+            ForEach(SampleTrack.library) { track in
+                let preset = VinylPreset.all.first(where: { $0.id == track.defaultPresetID })?.name ?? ""
+                let isSelected = engine.currentTrack?.id == track.id
+                Button(action: {
+                    engine.loadTrack(track)
+                    engine.startPlayback()
+                    onSelect?()
+                }) {
+                    libraryRow(label: "\(track.title) — \(track.artist) [\(preset)]", isSelected: isSelected)
+                }
+            }
+
+            if !engine.convertedFiles.isEmpty {
+                Text("CONVERTED".uppercased())
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white)
+                    .kerning(1.0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 4)
+
+                ForEach(engine.convertedFiles, id: \.lastPathComponent) { url in
+                    let name = url.deletingPathExtension().lastPathComponent
+                    let isSelected = engine.convertedFileURL == url
+                    Button(action: {
+                        engine.loadFile(url: url)
+                        engine.startPlayback()
+                        onSelect?()
+                    }) {
+                        libraryRow(label: name, isSelected: isSelected)
                     }
                 }
-            } label: {
-                SampleLibraryLabel(track: engine.currentTrack)
             }
         }
     }
-}
 
-/// Extracted so it only re-renders when `track` changes, not on every currentTime tick
-private struct SampleLibraryLabel: View {
-    let track: SampleTrack?
-    var body: some View {
+    private func libraryRow(label: String, isSelected: Bool) -> some View {
         HStack {
-            Text(menuLabel).font(.system(size: 11, design: .monospaced)).foregroundColor(Color(hex: "e8e6e0"))
+            Text(label)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(isSelected ? Color(hex: "c8b89a") : Color(hex: "e8e6e0"))
+                .lineLimit(1)
             Spacer()
-            Image(systemName: "chevron.down").font(.system(size: 10)).foregroundColor(Color(hex: "5a5856"))
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(Color(hex: "c8b89a"))
+            }
         }
         .padding(.horizontal, 10).padding(.vertical, 9)
-        .background(Color(hex: "161616"))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08), lineWidth: 0.5))
+        .background(isSelected ? Color(hex: "1e1a14") : Color(hex: "161616"))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(
+            isSelected ? Color(hex: "c8b89a").opacity(0.4) : Color.white.opacity(0.08),
+            lineWidth: 0.5))
         .cornerRadius(6)
-    }
-    private var menuLabel: String {
-        guard let t = track else { return "— select a track —" }
-        let p = VinylPreset.all.first(where: { $0.id == t.defaultPresetID })?.name ?? ""
-        return "\(t.title) — \(t.artist) [\(p)]"
     }
 }
 

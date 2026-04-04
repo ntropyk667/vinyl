@@ -51,27 +51,8 @@ class VinylEngine: ObservableObject {
     @Published var converterSourceLoaded = false
     @Published var convertFailed = false
     @Published var converterSourceName: String = ""
-    @Published var convertedFiles: [URL] = []
     private var converterBuffer: AVAudioPCMBuffer?
     private var previewPlayer: AVAudioPlayer?
-
-    static var documentsDirectory: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-    }
-
-    func scanConvertedFiles() {
-        let docs = VinylEngine.documentsDirectory
-        let files = (try? FileManager.default.contentsOfDirectory(
-            at: docs, includingPropertiesForKeys: [.creationDateKey], options: .skipsHiddenFiles
-        )) ?? []
-        convertedFiles = files
-            .filter { $0.pathExtension.lowercased() == "wav" && $0.lastPathComponent.hasSuffix("_vinyl.wav") }
-            .sorted {
-                let d1 = (try? $0.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
-                let d2 = (try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
-                return d1 > d2
-            }
-    }
 
     private let engine = AVAudioEngine()
     private var playerNode = AVAudioPlayerNode()
@@ -92,14 +73,12 @@ class VinylEngine: ObservableObject {
     private var hissPlayer = AVAudioPlayerNode()
     private var rumblePlayer = AVAudioPlayerNode()
     private var cracklePlayer = AVAudioPlayerNode()
+    private var pausedPosition: Double = 0
 
     // Playback speed
     static let speedOptions: [Float] = [0.5, 0.9, 1.0, 1.2, 1.5, 1.7, 2.0, 2.5, 3.0, 4.0]
     @Published var playbackSpeed: Float = 1.0
     @Published var showSpeedMenu = false
-    @Published var speedButtonFrame: CGRect = .zero
-
-    private var pausedPosition: Double = 0
     private var progressTimer: Timer?
     private var driftTimer: Timer?
     private var wowTimer: Timer?
@@ -113,7 +92,6 @@ class VinylEngine: ObservableObject {
         setupInterruptionHandling()
         loadNeedleDropFiles()
         applyPreset(.electronic)
-        scanConvertedFiles()
     }
 
     private func setupAudioSession() {
@@ -166,7 +144,7 @@ class VinylEngine: ObservableObject {
         speakerEQ = makeEQ(type: .parametric, freq: 2800, bw: 1.2, gain: 0)
         timePitch = AVAudioUnitTimePitch()
         timePitch.rate = 1.0
-        timePitch.pitch = 0
+        timePitch.pitch = 0  // cents
         let nodes: [AVAudioNode] = [playerNode, timePitch, hpFilter, riaaEQ, tubeWarmthEQ, tubeAirEQ, microEQ, xformerEQ, speakerEQ, satNode, lpFilter, roomEQ, masterMixer, hissPlayer, rumblePlayer, cracklePlayer]
         nodes.forEach { engine.attach($0) }
         let fmt = engine.mainMixerNode.outputFormat(forBus: 0)
@@ -190,8 +168,42 @@ class VinylEngine: ObservableObject {
         generateNoise()
     }
 
-    // Podcast files are often mono — duplicate the channel to stereo so the
-    // buffer format always matches the stereo engine connection.
+    /// Resample a buffer to the given sample rate using AVAudioConverter.
+    private func resampleBuffer(_ buffer: AVAudioPCMBuffer, to targetSR: Double) -> AVAudioPCMBuffer? {
+        let sourceSR = buffer.format.sampleRate
+        guard sourceSR != targetSR else { return buffer }
+        guard let targetFmt = AVAudioFormat(standardFormatWithSampleRate: targetSR,
+                                            channels: buffer.format.channelCount) else {
+            print("[VinylEngine] Cannot create target format \(targetSR) Hz / \(buffer.format.channelCount) ch")
+            return nil
+        }
+        guard let converter = AVAudioConverter(from: buffer.format, to: targetFmt) else {
+            print("[VinylEngine] Cannot create converter \(buffer.format) → \(targetFmt)")
+            return nil
+        }
+        let ratio = targetSR / sourceSR
+        let capacity = AVAudioFrameCount((Double(buffer.frameLength) * ratio).rounded(.up) + 1)
+        guard let out = AVAudioPCMBuffer(pcmFormat: targetFmt, frameCapacity: capacity) else {
+            print("[VinylEngine] Cannot create output buffer (capacity \(capacity))")
+            return nil
+        }
+        var error: NSError?
+        var consumed = false
+        converter.convert(to: out, error: &error) { _, status in
+            if consumed { status.pointee = .noDataNow; return nil }
+            status.pointee = .haveData
+            consumed = true
+            return buffer
+        }
+        if let error = error {
+            print("[VinylEngine] Resample error: \(error)")
+            return nil
+        }
+        print("[VinylEngine] Resampled \(sourceSR) → \(targetSR) Hz (\(buffer.frameLength) → \(out.frameLength) frames)")
+        return out
+    }
+
+    /// Upmix mono buffer to stereo.
     private func toStereo(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer {
         guard buffer.format.channelCount == 1 else { return buffer }
         let stereoFmt = AVAudioFormat(standardFormatWithSampleRate: buffer.format.sampleRate, channels: 2)!
@@ -369,6 +381,7 @@ class VinylEngine: ObservableObject {
         if !engine.isRunning {
             do { try engine.start() } catch { print("Engine start failed: \(error)"); return }
         }
+
         let sr = audioFile?.fileFormat.sampleRate ?? 44100
 
         // For podcasts, pausedPosition is absolute — compute chunk-relative offset
@@ -393,27 +406,23 @@ class VinylEngine: ObservableObject {
                 l[i] = m; r[i] = m
             }
         }
-        // Resample to match the engine connection format if needed (playerNode does no SRC)
-        let connFmt = playerNode.outputFormat(forBus: 0)
-        let bufToSchedule: AVAudioPCMBuffer
-        if sub.format.sampleRate != connFmt.sampleRate,
-           let converter = AVAudioConverter(from: sub.format, to: connFmt) {
-            let ratio = connFmt.sampleRate / sub.format.sampleRate
-            let destFrames = AVAudioFrameCount(Double(sub.frameLength) * ratio)
-            if let dest = AVAudioPCMBuffer(pcmFormat: connFmt, frameCapacity: destFrames) {
-                var inputConsumed = false
-                let status = converter.convert(to: dest, error: nil) { _, outStatus in
-                    if inputConsumed { outStatus.pointee = .noDataNow; return nil }
-                    outStatus.pointee = .haveData
-                    inputConsumed = true
-                    return sub
-                }
-                bufToSchedule = (status != .error) ? dest : sub
-            } else { bufToSchedule = sub }
-        } else { bufToSchedule = sub }
+        // Resample to hardware rate if needed (e.g. 44100 Hz file → 48000 Hz engine)
+        let hardwareRate = engine.mainMixerNode.outputFormat(forBus: 0).sampleRate
+        let bufferToSchedule: AVAudioPCMBuffer
+        if sub.format.sampleRate != hardwareRate, hardwareRate > 0 {
+            print("[VinylEngine] Resampling \(sub.format.sampleRate) Hz → \(hardwareRate) Hz")
+            if let resampled = resampleBuffer(sub, to: hardwareRate) {
+                bufferToSchedule = resampled
+            } else {
+                print("[VinylEngine] Resample failed, using original buffer")
+                bufferToSchedule = sub
+            }
+        } else {
+            bufferToSchedule = sub
+        }
 
         // FIX: guard against stale completion callbacks fired after stopPlayback()
-        playerNode.scheduleBuffer(bufToSchedule, at: nil, options: []) { [weak self] in
+        playerNode.scheduleBuffer(bufferToSchedule, at: nil, options: []) { [weak self] in
             DispatchQueue.main.async {
                 guard let self = self, self.isPlaying else { return }
                 self.handleEnd()
@@ -523,7 +532,7 @@ class VinylEngine: ObservableObject {
     private func startWow() {
         wowTimer?.invalidate(); wowTimer = nil
         guard !isBypassed else {
-            // Bypassed: keep user speed but no wow/flutter
+            // Bypassed: apply only the user speed, no wow/flutter
             timePitch.rate = playbackSpeed
             timePitch.pitch = 0
             return
@@ -537,26 +546,33 @@ class VinylEngine: ObservableObject {
         wowTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             guard let self = self, self.isPlaying else { return }
             phase += 0.05
+            // combined oscillates around 1.0 with wow/flutter/warp modulation
             let combined = 1.0 + wowD * sin(2 * Double.pi * 0.4 * phase) + flutD * sin(2 * Double.pi * 8 * phase) + warpD * sin(2 * Double.pi * 0.25 * phase) + self.driftOffset
             let clamped = max(0.97, min(1.03, combined))
-            // Apply user speed × wow modulation via timePitch
+            // Apply user speed × wow modulation to timePitch rate
             self.timePitch.rate = self.playbackSpeed * Float(clamped)
-            // Vinyl-realistic pitch wobble: 1731 ≈ 1200/ln(2), maps rate deviation to cents
+            // Add vinyl-realistic pitch wobble: real turntable speed changes affect pitch
+            // 1731 cents per unit deviation ≈ 1200 / ln(2) — maps rate ratio to cents
             self.timePitch.pitch = Float(1731.0 * (clamped - 1.0))
         }
     }
 
-    /// Set playback speed (pitch-preserving). Applies immediately.
+    /// Set playback speed (pitch-independent). Applies immediately.
     func setSpeed(_ speed: Float) {
         playbackSpeed = speed
         timePitch.rate = speed
+        // Restart wow timer so it modulates around the new base speed
         if isPlaying { startWow() }
     }
 
-    /// Format speed for display, e.g. "1x", "1.5x", "0.9x"
+    /// Format speed for display (e.g. "1x", "1.5x", "0.5x")
     static func speedLabel(_ speed: Float) -> String {
-        if speed == Float(Int(speed)) { return "\(Int(speed))x" }
-        return "\(String(format: "%g", speed))x"
+        if speed == Float(Int(speed)) {
+            return "\(Int(speed))x"
+        }
+        // Remove trailing zeros: 1.50 → 1.5, 0.90 → 0.9
+        let s = String(format: "%g", speed)
+        return "\(s)x"
     }
 
     func applyPreset(_ preset: VinylPreset) {
@@ -987,6 +1003,7 @@ class VinylEngine: ObservableObject {
                 let sr = file.fileFormat.sampleRate
                 let totalFrames = file.length
                 let totalDuration = Double(totalFrames) / sr
+
                 // Read in a capped chunk (max ~10 minutes at a time to limit RAM)
                 let maxFrames = AVAudioFrameCount(min(Double(totalFrames), sr * 600))
                 let rawBuffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: maxFrames)
@@ -1110,7 +1127,6 @@ class VinylEngine: ObservableObject {
                     self.convertProgress = 1.0
                     self.convertFailed = false
                     self.displayTitle = result.deletingPathExtension().lastPathComponent
-                    self.scanConvertedFiles()
                     // Load converted WAV into main player for preview with transport controls
                     self.loadConvertedIntoPlayer(url: result)
                 }
@@ -1213,7 +1229,7 @@ class VinylEngine: ObservableObject {
 
         // Render in chunks, writing directly to output file
         let outputFrames = prebaked.frameLength
-        let tempDir = VinylEngine.documentsDirectory
+        let tempDir = FileManager.default.temporaryDirectory
         let baseName = converterSourceName.isEmpty ? "Vinyl_\(Int(Date().timeIntervalSince1970))" : "\(converterSourceName)_vinyl"
         let filename = "\(baseName).wav"
         let outputURL = tempDir.appendingPathComponent(filename)

@@ -10,6 +10,7 @@ struct PodcastDetailView: View {
     let podcastName: String
     let artist: String
     let artworkURL: String
+    var onDismissAction: (() -> Void)? = nil
 
     var body: some View {
         NavigationView {
@@ -51,6 +52,7 @@ struct PodcastDetailView: View {
                                     engine.setPodcastEpisodeList(feed.episodes, currentIndex: index)
                                     let resumeTime = storage.getPlaybackPosition(episodeId: episode.id)
                                     engine.playPodcastEpisode(episode, resumeFrom: resumeTime)
+                                    onDismissAction?()
                                     dismiss()
                                 }
                             }
@@ -114,6 +116,8 @@ struct PodcastDetailView: View {
                     storage.unsubscribe(feedURL: feedURL)
                 } else if let feed = parser.feed {
                     storage.subscribeFeed(feed, artist: artist)
+                    onDismissAction?()
+                    dismiss()
                 }
             }) {
                 Text(storage.isSubscribed(feedURL: feedURL) ? "unsubscribe" : "subscribe")
