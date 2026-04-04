@@ -78,6 +78,7 @@ class VinylEngine: ObservableObject {
     static let speedOptions: [Float] = [0.5, 0.9, 1.0, 1.2, 1.5, 1.7, 2.0, 2.5, 3.0, 4.0]
     @Published var playbackSpeed: Float = 1.0
     @Published var showSpeedMenu = false
+    @Published var speedButtonFrame: CGRect = .zero
 
     private var pausedPosition: Double = 0
     private var progressTimer: Timer?

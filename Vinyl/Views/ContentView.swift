@@ -20,7 +20,12 @@ struct ContentView: View {
                         }
                     }
                 }
-                .scrollDisabled(engine.showSpeedMenu)
+                // Speed menu lives here, outside ScrollView, to avoid gesture conflicts
+                SpeedMenuView(engine: engine)
+                    .onTapGesture {
+                        engine.setSpeed(engine.playbackSpeed)
+                        engine.showSpeedMenu = false
+                    }
             }
         }
         .sheet(isPresented: $showFilePicker) {
