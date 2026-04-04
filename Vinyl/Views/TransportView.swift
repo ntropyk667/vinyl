@@ -169,7 +169,7 @@ struct TransportView: View {
                         }
                         .coordinateSpace(name: "speedMenu")
                         .frame(height: 140)
-                        .scrollDisabled(isAtScrollLimit)
+                        .environment(\.isScrollEnabled, !isAtScrollLimit)
                         .onPreferenceChange(SpeedMenuPositionsPreferenceKey.self) { positions in
                             // Find which item is closest to center (70px from menu top)
                             let alignmentY: CGFloat = 70
