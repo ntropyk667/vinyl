@@ -1,5 +1,13 @@
 import SwiftUI
 
+// PreferenceKey to track item positions in the speed menu
+struct SpeedMenuPositionsPreferenceKey: PreferenceKey {
+    static var defaultValue: [Float: CGFloat] = [:]
+    static func reduce(value: inout [Float: CGFloat], nextValue: () -> [Float: CGFloat]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
 struct TransportView: View {
     @ObservedObject var engine: VinylEngine
     @State private var isSeeking = false
@@ -144,25 +152,24 @@ struct TransportView: View {
                                                 .frame(height: 28)
                                                 .background(alignedSpeed == speed ? Color(hex: "1e1a14") : Color.clear)
                                         }
-                                        .onAppear {
-                                            let itemCenter = geo.frame(in: .local).midY
-                                            if abs(itemCenter - 70) < 14 {
-                                                alignedSpeed = speed
-                                            }
-                                        }
-                                        .onChange(of: geo.frame(in: .local).midY) { _ in
-                                            let itemCenter = geo.frame(in: .local).midY
-                                            if abs(itemCenter - 70) < 14 {
-                                                alignedSpeed = speed
-                                            }
-                                        }
+                                        .preference(key: SpeedMenuPositionsPreferenceKey.self, value: [speed: geo.frame(in: .named("speedMenu")).midY])
                                     }
                                     .frame(height: 28)
                                     .id(speed)
                                 }
                             }
                         }
+                        .coordinateSpace(name: "speedMenu")
                         .frame(height: 140)
+                        .onPreferenceChange(SpeedMenuPositionsPreferenceKey.self) { positions in
+                            // Find which item is closest to center (70px from menu top)
+                            let alignmentY: CGFloat = 70
+                            if let closestSpeed = positions.min(by: { abs($0.value - alignmentY) < abs($1.value - alignmentY) })?.key {
+                                if alignedSpeed != closestSpeed {
+                                    alignedSpeed = closestSpeed
+                                }
+                            }
+                        }
                         .onChange(of: engine.playbackSpeed) { newSpeed in
                             withAnimation {
                                 reader.scrollTo(newSpeed, anchor: .center)
