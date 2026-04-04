@@ -153,13 +153,15 @@ struct TransportView: View {
                             reader.scrollTo(engine.playbackSpeed, anchor: .center)
                         }
                     }
+                    Image(systemName: "chevron.down")
+                        .frame(height: 14)
                 }
                 .frame(width: 56)
                 .background(Color(hex: "1a1a1a"))
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.12), lineWidth: 0.5))
                 .cornerRadius(6)
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 2)
-                .offset(x: -10, y: -24)
+                .offset(x: -10, y: 0)
             }
         }
         .onTapGesture {
