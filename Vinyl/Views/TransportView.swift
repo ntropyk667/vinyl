@@ -14,7 +14,6 @@ struct TransportView: View {
     @State private var isSeeking = false
     @State private var seekValue: Double = 0
     @State private var alignedSpeed: Float = 1.0
-    @State private var scrollCompleted = false
 
     /// Needle drop offset in seconds
     private var ndOffset: Double {
@@ -169,7 +168,6 @@ struct TransportView: View {
                         }
                         .coordinateSpace(name: "speedMenu")
                         .frame(height: 140)
-                        .scrollDisabled(scrollCompleted && (alignedSpeed == VinylEngine.speedOptions.first || alignedSpeed == VinylEngine.speedOptions.last))
                         .onPreferenceChange(SpeedMenuPositionsPreferenceKey.self) { positions in
                             // Find which item is closest to center (70px from menu top)
                             let alignmentY: CGFloat = 70
@@ -185,19 +183,11 @@ struct TransportView: View {
                                 reader.scrollTo(newSpeed, anchor: .center)
                                 alignedSpeed = newSpeed
                             }
-                            // Let scroll complete before disabling
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                scrollCompleted = true
-                            }
                         }
                         .onAppear {
                             // Center current speed on appear
                             reader.scrollTo(engine.playbackSpeed, anchor: .center)
                             alignedSpeed = engine.playbackSpeed
-                            // Let scroll complete before disabling
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                scrollCompleted = true
-                            }
                         }
                     }
                     Image(systemName: "chevron.down")
