@@ -159,7 +159,7 @@ struct TransportView: View {
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.12), lineWidth: 0.5))
                 .cornerRadius(6)
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 2)
-                .offset(x: -10, y: 4)
+                .offset(x: -10, y: -24)
             }
         }
         .onTapGesture {
