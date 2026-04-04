@@ -69,9 +69,16 @@ class VinylEngine: ObservableObject {
     private var microEQ: AVAudioUnitEQ!
     private var xformerEQ: AVAudioUnitEQ!
     private var speakerEQ: AVAudioUnitEQ!
+    private var timePitch: AVAudioUnitTimePitch!
     private var hissPlayer = AVAudioPlayerNode()
     private var rumblePlayer = AVAudioPlayerNode()
     private var cracklePlayer = AVAudioPlayerNode()
+
+    // Playback speed
+    static let speedOptions: [Float] = [0.5, 0.9, 1.0, 1.2, 1.5, 1.7, 2.0, 2.5, 3.0, 4.0]
+    @Published var playbackSpeed: Float = 1.0
+    @Published var showSpeedMenu = false
+
     private var pausedPosition: Double = 0
     private var progressTimer: Timer?
     private var driftTimer: Timer?
@@ -136,10 +143,14 @@ class VinylEngine: ObservableObject {
         microEQ = makeEQ(type: .parametric, freq: 220, bw: 0.2, gain: 0)
         xformerEQ = makeEQ(type: .lowShelf, freq: 120, gain: 0)
         speakerEQ = makeEQ(type: .parametric, freq: 2800, bw: 1.2, gain: 0)
-        let nodes: [AVAudioNode] = [playerNode, hpFilter, riaaEQ, tubeWarmthEQ, tubeAirEQ, microEQ, xformerEQ, speakerEQ, satNode, lpFilter, roomEQ, masterMixer, hissPlayer, rumblePlayer, cracklePlayer]
+        timePitch = AVAudioUnitTimePitch()
+        timePitch.rate = 1.0
+        timePitch.pitch = 0
+        let nodes: [AVAudioNode] = [playerNode, timePitch, hpFilter, riaaEQ, tubeWarmthEQ, tubeAirEQ, microEQ, xformerEQ, speakerEQ, satNode, lpFilter, roomEQ, masterMixer, hissPlayer, rumblePlayer, cracklePlayer]
         nodes.forEach { engine.attach($0) }
         let fmt = engine.mainMixerNode.outputFormat(forBus: 0)
-        engine.connect(playerNode, to: hpFilter, format: nil)
+        engine.connect(playerNode, to: timePitch, format: nil)
+        engine.connect(timePitch, to: hpFilter, format: nil)
         engine.connect(hpFilter, to: riaaEQ, format: nil)
         engine.connect(riaaEQ, to: tubeWarmthEQ, format: nil)
         engine.connect(tubeWarmthEQ, to: tubeAirEQ, format: nil)
@@ -361,8 +372,27 @@ class VinylEngine: ObservableObject {
                 l[i] = m; r[i] = m
             }
         }
+        // Resample to match the engine connection format if needed (playerNode does no SRC)
+        let connFmt = playerNode.outputFormat(forBus: 0)
+        let bufToSchedule: AVAudioPCMBuffer
+        if sub.format.sampleRate != connFmt.sampleRate,
+           let converter = AVAudioConverter(from: sub.format, to: connFmt) {
+            let ratio = connFmt.sampleRate / sub.format.sampleRate
+            let destFrames = AVAudioFrameCount(Double(sub.frameLength) * ratio)
+            if let dest = AVAudioPCMBuffer(pcmFormat: connFmt, frameCapacity: destFrames) {
+                var inputConsumed = false
+                let status = converter.convert(to: dest, error: nil) { _, outStatus in
+                    if inputConsumed { outStatus.pointee = .noDataNow; return nil }
+                    outStatus.pointee = .haveData
+                    inputConsumed = true
+                    return sub
+                }
+                bufToSchedule = (status != .error) ? dest : sub
+            } else { bufToSchedule = sub }
+        } else { bufToSchedule = sub }
+
         // FIX: guard against stale completion callbacks fired after stopPlayback()
-        playerNode.scheduleBuffer(sub, at: nil, options: []) { [weak self] in
+        playerNode.scheduleBuffer(bufToSchedule, at: nil, options: []) { [weak self] in
             DispatchQueue.main.async {
                 guard let self = self, self.isPlaying else { return }
                 self.handleEnd()
@@ -471,7 +501,12 @@ class VinylEngine: ObservableObject {
 
     private func startWow() {
         wowTimer?.invalidate(); wowTimer = nil
-        guard !isBypassed else { return }
+        guard !isBypassed else {
+            // Bypassed: keep user speed but no wow/flutter
+            timePitch.rate = playbackSpeed
+            timePitch.pitch = 0
+            return
+        }
         var phase: Double = 0
         let w = Double(params.wear) / 100
         let m = Double(params.masterIntensity) / 100
@@ -482,8 +517,25 @@ class VinylEngine: ObservableObject {
             guard let self = self, self.isPlaying else { return }
             phase += 0.05
             let combined = 1.0 + wowD * sin(2 * Double.pi * 0.4 * phase) + flutD * sin(2 * Double.pi * 8 * phase) + warpD * sin(2 * Double.pi * 0.25 * phase) + self.driftOffset
-            self.playerNode.rate = Float(max(0.97, min(1.03, combined)))
+            let clamped = max(0.97, min(1.03, combined))
+            // Apply user speed × wow modulation via timePitch
+            self.timePitch.rate = self.playbackSpeed * Float(clamped)
+            // Vinyl-realistic pitch wobble: 1731 ≈ 1200/ln(2), maps rate deviation to cents
+            self.timePitch.pitch = Float(1731.0 * (clamped - 1.0))
         }
+    }
+
+    /// Set playback speed (pitch-preserving). Applies immediately.
+    func setSpeed(_ speed: Float) {
+        playbackSpeed = speed
+        timePitch.rate = speed
+        if isPlaying { startWow() }
+    }
+
+    /// Format speed for display, e.g. "1x", "1.5x", "0.9x"
+    static func speedLabel(_ speed: Float) -> String {
+        if speed == Float(Int(speed)) { return "\(Int(speed))x" }
+        return "\(String(format: "%g", speed))x"
     }
 
     func applyPreset(_ preset: VinylPreset) {
@@ -914,7 +966,6 @@ class VinylEngine: ObservableObject {
                 let sr = file.fileFormat.sampleRate
                 let totalFrames = file.length
                 let totalDuration = Double(totalFrames) / sr
-
                 // Read in a capped chunk (max ~10 minutes at a time to limit RAM)
                 let maxFrames = AVAudioFrameCount(min(Double(totalFrames), sr * 600))
                 let rawBuffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: maxFrames)

@@ -91,15 +91,82 @@ struct TransportView: View {
                         .frame(width: 32, height: 32)
                 }
                 .disabled(!nextButtonEnabled)
+
+                // Speed button with overlay menu
+                Button(action: { engine.showSpeedMenu.toggle() }) {
+                    Text(VinylEngine.speedLabel(engine.playbackSpeed))
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundColor(engine.playbackSpeed == 1.0 ? Color(hex: "5a5856") : Color(hex: "c8b89a"))
+                        .padding(.horizontal, 6).padding(.vertical, 3)
+                        .background(engine.playbackSpeed == 1.0 ? Color.clear : Color(hex: "1e1a14"))
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(
+                            engine.playbackSpeed == 1.0 ? Color.white.opacity(0.12) : Color(hex: "c8b89a").opacity(0.4),
+                            lineWidth: 0.5))
+                        .cornerRadius(4)
+                }
             }
             .frame(maxWidth: .infinity)
             .disabled(engine.isConverting)
             .opacity(engine.isConverting ? 0.4 : 1.0)
         }
         .padding(12)
-        .background(Color(hex: "161616"))
+        .background(
+            RoundedRectangle(cornerRadius: 8).fill(Color(hex: "161616"))
+        )
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08), lineWidth: 0.5))
-        .cornerRadius(8)
+        .overlay(alignment: .topTrailing) {
+            if engine.showSpeedMenu {
+                VStack(spacing: 0) {
+                    // Up arrow indicator
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(Color(hex: "5a5856"))
+                        .frame(height: 14)
+
+                    // Speed list with 1x centered
+                    ScrollViewReader { reader in
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                ForEach(VinylEngine.speedOptions.reversed(), id: \.self) { speed in
+                                    Button(action: {
+                                        engine.setSpeed(speed)
+                                        engine.showSpeedMenu = false
+                                    }) {
+                                        Text(VinylEngine.speedLabel(speed))
+                                            .font(.system(size: 11, weight: engine.playbackSpeed == speed ? .bold : .semibold, design: .monospaced))
+                                            .foregroundColor(engine.playbackSpeed == speed ? Color(hex: "c8b89a") : Color(hex: "5a5856"))
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 28)
+                                            .background(engine.playbackSpeed == speed ? Color(hex: "1e1a14") : Color.clear)
+                                    }
+                                    .id(speed)
+                                }
+                            }
+                        }
+                        .frame(height: 168)
+                        .onChange(of: engine.playbackSpeed) { newSpeed in
+                            withAnimation {
+                                reader.scrollTo(newSpeed, anchor: .center)
+                            }
+                        }
+                        .onAppear {
+                            reader.scrollTo(engine.playbackSpeed, anchor: .center)
+                        }
+                    }
+                }
+                .frame(width: 56)
+                .background(Color(hex: "1a1a1a"))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.12), lineWidth: 0.5))
+                .cornerRadius(6)
+                .shadow(color: .black.opacity(0.5), radius: 6, y: 2)
+                .offset(x: -10, y: 32)
+            }
+        }
+        .onTapGesture {
+            if engine.showSpeedMenu {
+                engine.showSpeedMenu = false
+            }
+        }
     }
 
     private var progress: Double {
