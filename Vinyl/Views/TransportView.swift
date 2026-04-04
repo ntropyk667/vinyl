@@ -154,6 +154,8 @@ struct TransportView: View {
                         }
                     }
                     Image(systemName: "chevron.down")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(Color(hex: "5a5856"))
                         .frame(height: 14)
                 }
                 .frame(width: 56)
