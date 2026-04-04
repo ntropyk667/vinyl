@@ -141,7 +141,7 @@ struct TransportView: View {
                         ScrollView {
                             VStack(spacing: 0) {
                                 // Padding above to allow centering of top item (4.0x)
-                                Color.clear.frame(height: 112)
+                                Color.clear.frame(height: 140)
 
                                 ForEach(VinylEngine.speedOptions.reversed(), id: \.self) { speed in
                                     GeometryReader { geo in
@@ -163,7 +163,7 @@ struct TransportView: View {
                                 }
 
                                 // Padding below to allow centering of bottom item (0.5x)
-                                Color.clear.frame(height: 112)
+                                Color.clear.frame(height: 140)
                             }
                         }
                         .coordinateSpace(name: "speedMenu")
