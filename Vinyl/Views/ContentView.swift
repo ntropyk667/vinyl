@@ -20,7 +20,20 @@ struct ContentView: View {
                         }
                     }
                 }
-                .scrollDisabled(engine.showSpeedMenu)
+                .allowsHitTesting(!engine.showSpeedMenu)
+
+                // When menu is open: transparent layer captures taps outside menu
+                if engine.showSpeedMenu {
+                    Color.black.opacity(0.001)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            engine.setSpeed(engine.playbackSpeed)
+                            engine.showSpeedMenu = false
+                        }
+                }
+
+                // Speed menu lives outside ScrollView — no gesture conflicts
+                SpeedMenuView(engine: engine)
             }
         }
         .sheet(isPresented: $showFilePicker) {
