@@ -70,7 +70,12 @@ struct PodcastDetailView: View {
                 }
             }
             .onAppear {
-                parser.fetchFeed(url: feedURL)
+                // Delay fetch until after the menu open animation (~0.2s) has settled.
+                // Starting a network request during animation causes main-thread spikes
+                // that can starve the audio thread and produce static during playback.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    parser.fetchFeed(url: feedURL)
+                }
             }
         }
     }

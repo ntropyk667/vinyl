@@ -100,6 +100,7 @@ class VinylEngine: ObservableObject {
     @Published var speedButtonFrame: CGRect = .zero
 
     private var pausedPosition: Double = 0
+    private var hasSentSilentLeader = false
     private var progressTimer: Timer?
     private var driftTimer: Timer?
     private var wowTimer: Timer?
@@ -118,8 +119,10 @@ class VinylEngine: ObservableObject {
 
     private func setupAudioSession() {
         do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-            try AVAudioSession.sharedInstance().setActive(true)
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setPreferredIOBufferDuration(0.01) // 10ms — larger buffer reduces underruns during UI activity
+            try session.setActive(true)
         } catch { print("Audio session error: \(error)") }
     }
 
@@ -187,6 +190,12 @@ class VinylEngine: ObservableObject {
         engine.connect(cracklePlayer, to: masterMixer, format: fmt)
         engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
         do { try engine.start() } catch { print("Engine start error: \(error)") }
+        // Install a discard tap on the main mixer to force the engine into continuous
+        // rendering mode. This keeps the audio hardware (speaker amp/DAC) in its active
+        // state from launch onward. Without it, the hardware idles until the first
+        // playerNode.play() and then produces a power-on pop. The tap callback discards
+        // all data — no audible output, no CPU overhead beyond normal rendering.
+        engine.mainMixerNode.installTap(onBus: 0, bufferSize: 4096, format: nil) { _, _ in }
         generateNoise()
     }
 
@@ -267,8 +276,12 @@ class VinylEngine: ObservableObject {
         var phase = 0; var amp: Float = 1
         for ch in 0..<Int(fmt.channelCount) {
             guard let d = buf.floatChannelData?[ch] else { continue }
+            // Skip pop events for the first 4410 frames (~100ms at 44.1kHz).
+            // The crackle buffer loops, and if a pop event falls at frame 0 it fires
+            // the instant cracklePlayer.play() is called, producing an audible click.
+            let safeStart = Int(fmt.sampleRate * 0.1)
             for i in 0..<Int(n) {
-                if Double.random(in: 0...1) < popProb { phase = Int.random(in: 8...28); amp = Float.random(in: 0.4...1.0) }
+                if i >= safeStart, Double.random(in: 0...1) < popProb { phase = Int.random(in: 8...28); amp = Float.random(in: 0.4...1.0) }
                 if phase > 0 { d[i] = Float.random(in: -1...1) * amp * Float(phase) / 28.0 * gain; phase -= 1 }
                 else { d[i] = 0 }
             }
@@ -311,7 +324,7 @@ class VinylEngine: ObservableObject {
             if let preset = VinylPreset.all.first(where: { $0.id == track.defaultPresetID }) { applyPreset(preset) }
             if wasPlaying {
                 // Small delay ensures the engine has fully settled after stop() before rescheduling
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                     self?.startPlayback()
                 }
             }
@@ -351,7 +364,7 @@ class VinylEngine: ObservableObject {
             updateAmpParams()
             if wasPlaying {
                 // Small delay ensures the engine has fully settled after stop() before rescheduling
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                     self?.startPlayback()
                 }
             }
@@ -412,6 +425,21 @@ class VinylEngine: ObservableObject {
             } else { bufToSchedule = sub }
         } else { bufToSchedule = sub }
 
+        // On the very first play after launch, the full DSP chain (timePitch → EQ nodes)
+        // has never processed audio. Sending a silent leader through the scheduler
+        // forces all nodes to initialize before real audio arrives, eliminating the
+        // first-play pop. Subsequent plays don't need this — the chain is already warm.
+        if !hasSentSilentLeader {
+            hasSentSilentLeader = true
+            if let leaderBuf = AVAudioPCMBuffer(pcmFormat: bufToSchedule.format, frameCapacity: 4096) {
+                leaderBuf.frameLength = 4096
+                playerNode.scheduleBuffer(leaderBuf, at: nil, options: []) { }
+            }
+        }
+
+        // Apply fade-in (~93ms at 44.1kHz) to mask any non-zero-crossing start transient
+        applyFadeIn(to: bufToSchedule, frameCount: 4096)
+
         // FIX: guard against stale completion callbacks fired after stopPlayback()
         playerNode.scheduleBuffer(bufToSchedule, at: nil, options: []) { [weak self] in
             DispatchQueue.main.async {
@@ -419,6 +447,11 @@ class VinylEngine: ObservableObject {
                 self.handleEnd()
             }
         }
+        // Set all EQ/amp parameters BEFORE nodes start playing. Changing parameters
+        // mid-render (even on the first play) can produce a brief transient as filter
+        // states become inconsistent with the new coefficients.
+        updateVinylParams()
+        updateAmpParams()
         playerNode.play()
         if !hissPlayer.isPlaying { hissPlayer.play() }
         if !rumblePlayer.isPlaying { rumblePlayer.play() }
@@ -427,23 +460,38 @@ class VinylEngine: ObservableObject {
         startProgressTimer()
         startDriftTimer()
         startWow()
-        updateVinylParams()
-        updateAmpParams()
+    }
+
+    /// Applies a linear fade-in to the first N frames to prevent clicks on playback start
+    private func applyFadeIn(to buffer: AVAudioPCMBuffer, frameCount: Int) {
+        let count = min(frameCount, Int(buffer.frameLength))
+        guard count > 0 else { return }
+        for ch in 0..<Int(buffer.format.channelCount) {
+            guard let data = buffer.floatChannelData?[ch] else { continue }
+            for i in 0..<count {
+                data[i] *= Float(i) / Float(count)
+            }
+        }
     }
 
     func stopPlayback() {
         // For podcasts, currentTime is already absolute — save it directly
         pausedPosition = currentTime
-        // FIX: stop() instead of pause() — cancels all pending scheduled buffers and
-        // prevents stale completion callbacks from firing after a track change.
-        playerNode.stop()
-        hissPlayer.pause()
-        rumblePlayer.pause()
-        cracklePlayer.pause()
         isPlaying = false
         progressTimer?.invalidate(); progressTimer = nil
         driftTimer?.invalidate(); driftTimer = nil
         wowTimer?.invalidate(); wowTimer = nil
+        hissPlayer.pause()
+        rumblePlayer.pause()
+        cracklePlayer.pause()
+        // Fade volume to zero — this takes effect within one IO buffer (~10ms).
+        // Delaying stop() by 30ms ensures the fade completes before hard-stopping,
+        // preventing the click from an abrupt sample cut.
+        playerNode.volume = 0
+        DispatchQueue.global(qos: .userInteractive).asyncAfter(deadline: .now() + 0.03) { [weak self] in
+            self?.playerNode.stop()
+            DispatchQueue.main.async { self?.playerNode.volume = 1 }
+        }
     }
 
     func togglePlayback() {
@@ -459,7 +507,7 @@ class VinylEngine: ObservableObject {
         if was {
             // Same 50ms settle delay as loadTrack — ensures stop() has fully
             // flushed before we reschedule a new buffer from the seek position.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                 self?.startPlayback()
             }
         }
@@ -711,7 +759,7 @@ class VinylEngine: ObservableObject {
         pausedPosition = absolutePos
         currentTime = absolutePos
         if wasPlaying {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                 self?.startPlayback()
             }
         }
@@ -1079,7 +1127,7 @@ class VinylEngine: ObservableObject {
             powerampOn = true
             updateAmpParams()
             if wasPlaying {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                     self?.startPlayback()
                 }
             }

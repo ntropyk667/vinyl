@@ -92,15 +92,17 @@ struct ContentView: View {
             .onChange(of: engine.converterSourceLoaded) { loaded in
                 if loaded { withAnimation(.easeInOut(duration: 0.2)) { expandedSection = .converter } }
             }
-            // Converter and podcasts expand inline — effects still usable
-            if expandedSection == .converter {
-                ConverterView(engine: engine)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-            if expandedSection == .podcast {
-                PodcastView(engine: engine, storage: podcastStorage)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
+            // Converter and podcasts expand inline — kept in hierarchy always so
+            // SwiftUI initializes the views at launch, not on first open. This prevents
+            // the first-open CPU spike that causes audio static during playback.
+            ConverterView(engine: engine)
+                .frame(height: expandedSection == .converter ? nil : 0)
+                .opacity(expandedSection == .converter ? 1 : 0)
+                .clipped()
+            PodcastView(engine: engine, storage: podcastStorage)
+                .frame(height: expandedSection == .podcast ? nil : 0)
+                .opacity(expandedSection == .podcast ? 1 : 0)
+                .clipped()
             // Library overlays content below (just picking a track, no effects needed)
             if expandedSection == .library {
                 Color.clear.frame(height: 0)
@@ -114,7 +116,7 @@ struct ContentView: View {
                             .offset(y: 6)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .zIndex(10)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
+                            .transition(.opacity)
                     }
             }
             // Controls — disabled during preview or when library is open
