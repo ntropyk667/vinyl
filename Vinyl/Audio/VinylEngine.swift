@@ -83,6 +83,13 @@ class VinylEngine: ObservableObject {
     private var riaaEQ: AVAudioUnitEQ!
     private var roomEQ: AVAudioUnitEQ!
     private var masterMixer: AVAudioMixerNode!
+    // Incremented on every startPlayback(). Completion callbacks capture the generation
+    // at scheduling time and bail if it no longer matches — prevents stale callbacks
+    // from previous buffers cascading into handleEnd() and flickering through tracks.
+    private var playbackGeneration = 0
+    // On first play, mainMixerNode fades from 0→1 over 500ms to mask the iOS audio
+    // hardware/EQ initialization pop. Output is locked at 0 from engine startup.
+    private var hasWarmedUp = false
     private var tubeWarmthEQ: AVAudioUnitEQ!
     private var tubeAirEQ: AVAudioUnitEQ!
     private var microEQ: AVAudioUnitEQ!
@@ -187,6 +194,8 @@ class VinylEngine: ObservableObject {
         engine.connect(cracklePlayer, to: masterMixer, format: fmt)
         engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
         do { try engine.start() } catch { print("Engine start error: \(error)") }
+        // Lock output to 0 at startup — ramped back up on first play to mask pop.
+        engine.mainMixerNode.outputVolume = 0
         generateNoise()
     }
 
@@ -412,10 +421,14 @@ class VinylEngine: ObservableObject {
             } else { bufToSchedule = sub }
         } else { bufToSchedule = sub }
 
-        // FIX: guard against stale completion callbacks fired after stopPlayback()
+        // Capture generation so stale callbacks from previous buffers are ignored.
+        // Without this, old callbacks see isPlaying=true after the next track starts
+        // and cascade through handleEnd() repeatedly, flickering through tracks.
+        playbackGeneration += 1
+        let gen = playbackGeneration
         playerNode.scheduleBuffer(bufToSchedule, at: nil, options: []) { [weak self] in
             DispatchQueue.main.async {
-                guard let self = self, self.isPlaying else { return }
+                guard let self = self, self.isPlaying, self.playbackGeneration == gen else { return }
                 self.handleEnd()
             }
         }
@@ -423,6 +436,17 @@ class VinylEngine: ObservableObject {
         if !hissPlayer.isPlaying { hissPlayer.play() }
         if !rumblePlayer.isPlaying { rumblePlayer.play() }
         if !cracklePlayer.isPlaying { cracklePlayer.play() }
+        if !hasWarmedUp {
+            hasWarmedUp = true
+            let steps = 50
+            let interval = 0.5 / Double(steps)
+            var step = 0
+            Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] timer in
+                step += 1
+                self?.engine.mainMixerNode.outputVolume = Float(step) / Float(steps)
+                if step >= steps { timer.invalidate() }
+            }
+        }
         isPlaying = true
         startProgressTimer()
         startDriftTimer()
@@ -491,10 +515,22 @@ class VinylEngine: ObservableObject {
             return
         }
 
-        // Normal track: loop from top
-        pausedPosition = 0
-        currentTime = 0
-        startPlayback()
+        // Library track: advance to next track (wraps around), applying its default preset.
+        // Converter/file tracks have no currentTrack set, so they loop as before.
+        if let current = currentTrack,
+           let idx = SampleTrack.library.firstIndex(where: { $0.id == current.id }) {
+            let next = SampleTrack.library[(idx + 1) % SampleTrack.library.count]
+            if let preset = VinylPreset.all.first(where: { $0.id == next.defaultPresetID }) {
+                applyPreset(preset)
+            }
+            loadTrack(next)
+            startPlayback()
+        } else {
+            // No library track loaded (converter mode) — loop from top
+            pausedPosition = 0
+            currentTime = 0
+            startPlayback()
+        }
     }
 
     private func startProgressTimer() {
