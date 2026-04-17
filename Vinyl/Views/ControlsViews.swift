@@ -95,7 +95,15 @@ struct PresetButton: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // Fill the full width AND height of the LazyVGrid row cell so every
+            // preset button matches its row-mates. LazyVGrid sizes each row to
+            // the tallest cell; without `maxHeight: .infinity` a button with a
+            // shorter description (e.g. "custom / default settings" — 1 line
+            // vs. the 2-line descriptions on every other preset) renders
+            // shorter than its neighbor. `alignment: .topLeading` keeps the
+            // text pinned to the top-left so layout inside the button is
+            // unchanged for the already-2-line presets.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(isActive ? Color(hex: "1e1e1e") : Color(hex: "161616"))
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(isActive ? Color(hex: "c8b89a") : Color.white.opacity(0.08), lineWidth: 0.5))
             .cornerRadius(6)

@@ -119,7 +119,17 @@ struct ContentView: View {
             }
             // Controls — disabled during preview or when library is open
             Group {
-                HStack(alignment: .top, spacing: 12) {
+                // Bottom-align the two columns so the presets column (right)
+                // drops down to match the left column's greater height. The
+                // left column (tubes + 4 control buttons) is taller than the
+                // presets column (label + 4 rows of buttons), so `.bottom`
+                // keeps the left column in place and pushes the entire presets
+                // section — the "presets" label and all 8 buttons — down as a
+                // unit. The bottom edge of the last preset row now lines up
+                // with the bottom edge of the needle drop button. Using an
+                // alignment (instead of a hard-coded top padding) means this
+                // stays correct if either column's height changes later.
+                HStack(alignment: .bottom, spacing: 12) {
                     VStack(spacing: 8) {
                         TubeControlsView(engine: engine)
                             .disabled(engine.isBypassed)
