@@ -165,6 +165,12 @@ class VinylEngine: ObservableObject {
         roomEQ = makeEQ(type: .parametric, freq: 180, bw: 0.5, gain: 0)
         masterMixer = AVAudioMixerNode()
         satNode = AVAudioUnitDistortion()
+        // Use the cubic soft-clipping preset to emulate Class A amplifier
+        // behavior. Cubic distortion produces predominantly odd-order harmonics
+        // and a smooth, compressive transfer curve — much closer to how real
+        // Class A tube stages squash transients than the default harsh preset
+        // AVAudioUnitDistortion otherwise uses.
+        satNode.loadFactoryPreset(.multiDistortedCubed)
         satNode.wetDryMix = 0
         tubeWarmthEQ = makeEQ(type: .parametric, freq: 200, bw: 1.0, gain: 0)
         tubeAirEQ = makeEQ(type: .highShelf, freq: 10000, gain: 0)
@@ -656,7 +662,12 @@ class VinylEngine: ObservableObject {
     func updateVinylParams() {
         guard !isBypassed else {
             lpFilter.bands[0].frequency = 20000
-            satNode.wetDryMix = 0
+            // Note: satNode.wetDryMix is no longer zeroed here. satNode is
+            // now owned by updateAmpParams() (it drives the "class A drive"
+            // slider's effect), which evaluates `pw = powerampOn && !isBypassed`
+            // and will correctly set wetDryMix to 0 while bypassed. toggleBypass()
+            // always calls both updateVinylParams() and updateAmpParams() together,
+            // so the bypass state stays consistent.
             roomEQ.bands[0].gain = 0
             riaaEQ.bands[0].gain = 0
             return
@@ -665,7 +676,8 @@ class VinylEngine: ObservableObject {
         let m = params.masterIntensity / 100
         let cutoff = max(600.0, 18000.0 - Double(w) * 11000 - Double(params.hfRolloff) / 100 * Double(m) * 13000)
         lpFilter.bands[0].frequency = Float(cutoff)
-        satNode.wetDryMix = 0  // saturation effect removed — tube warmth EQ handles all warmth
+        // satNode.wetDryMix intentionally not set here — see note in the
+        // bypass guard above. Class A drive lives in updateAmpParams() now.
         riaaEQ.bands[0].gain = params.riaaVariance / 100 * m * 6 - 3
         roomEQ.bands[0].gain = params.roomResonance / 100 * m * 3
     }
@@ -674,11 +686,22 @@ class VinylEngine: ObservableObject {
         let pa = preampOn && !isBypassed
         let pw = powerampOn && !isBypassed
         let m = params.masterIntensity / 100
-        tubeWarmthEQ.bands[0].gain = pa ? params.saturation / 100 * m * 1.2 : 0
-        tubeAirEQ.bands[0].gain = pa ? -(params.hfRolloff / 100 * m * 0.35) : 0
-        microEQ.bands[0].gain = pa ? params.roomResonance / 100 * m * 0.6 : 0
-        xformerEQ.bands[0].gain = pw ? params.rumble / 100 * m * 0.6 : 0
-        speakerEQ.bands[0].gain = pw ? -(params.roomResonance / 100 * m * 0.5) : 0
+        // Each EQ node is now driven by its OWN independent parameter, not a
+        // shared one. This is the audio-engine half of the slider-decoupling
+        // change (the other half is in VinylParameters + ControlsViews). The
+        // DSP math itself (scaling factors, sign conventions) is unchanged so
+        // the sound at default preset values is identical to before; only the
+        // ability to move each slider independently is new.
+        tubeWarmthEQ.bands[0].gain = pa ? params.saturation / 100 * m * 1.2 : 0      // "tube warmth"
+        tubeAirEQ.bands[0].gain    = pa ? -(params.airRolloff / 100 * m * 0.35) : 0   // "air rolloff"
+        microEQ.bands[0].gain      = pa ? params.microphonics / 100 * m * 0.6 : 0     // "microphonics"
+        xformerEQ.bands[0].gain    = pw ? params.outputTransformer / 100 * m * 0.6 : 0 // "output transformer"
+        speakerEQ.bands[0].gain    = pw ? -(params.speakerCoupling / 100 * m * 0.5) : 0 // "speaker coupling"
+        // "class A drive" — cubic soft-clip via AVAudioUnitDistortion.
+        // wetDryMix is in percent (0-100). Cap at 15% even at slider=100 and
+        // masterIntensity=100 so the effect stays in "subtle warmth" territory
+        // rather than ever sounding like a guitar-amp distortion pedal.
+        satNode.wetDryMix          = pw ? params.classADrive / 100 * m * 15 : 0
     }
 
     func updateNoiseParams() {
