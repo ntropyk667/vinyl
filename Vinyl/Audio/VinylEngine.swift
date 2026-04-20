@@ -43,6 +43,24 @@ class VinylEngine: ObservableObject {
     private(set) var needleDropFrameCount: AVAudioFrameCount = 0
     private let needleDropFiles = ["needle_drop_1", "needle_drop_2", "needle_drop_3", "needle_drop_4"]
 
+    // MARK: Crackle "just dropped" ramp
+    //
+    // When the stylus first lands, real records have a bunch of surface debris
+    // that clears out over the first several seconds of playback. We emulate
+    // that by linearly decaying a crackle-volume multiplier from `initialBoost`
+    // down to 1.0 over `rampSeconds`, starting when playback begins near the
+    // top of a buffer that has the needle drop prefix.
+    //
+    // `crackleBoost` is multiplied into the crackle volume inside
+    // updateNoiseParams(), so it composes cleanly with whatever the user's
+    // crackle slider is set to — if they move the slider mid-ramp, the target
+    // level slides with them while the ramp keeps tapering toward 1.0×.
+    private var crackleBoost: Float = 1.0
+    private var crackleRampStartTime: Date?
+    private var crackleRampTimer: Timer?
+    private static let crackleRampSeconds: Double = 10.0
+    private static let crackleRampInitialBoost: Float = 2.0
+
     // Converter state
     @Published var isConverting = false
     @Published var convertProgress: Double = 0
@@ -308,9 +326,15 @@ class VinylEngine: ObservableObject {
         displayTitle = track.title
         pausedPosition = 0
         currentTime = 0
+        // Fallback chain of extensions for bundled sample tracks. .flac added
+        // for "Big Bad John" (and any future lossless samples). AVAudioFile on
+        // iOS 11+ decodes FLAC natively, so this just works — no extra codec
+        // or framework needed. Order is cheapest-first (most common format
+        // tried first) so the typical mp3 track hits on the first lookup.
         let url = Bundle.main.url(forResource: track.filename, withExtension: "mp3")
             ?? Bundle.main.url(forResource: track.filename, withExtension: "m4a")
             ?? Bundle.main.url(forResource: track.filename, withExtension: "mp4")
+            ?? Bundle.main.url(forResource: track.filename, withExtension: "flac")
         guard let fileURL = url else { print("Not found: \(track.filename)"); return }
         do {
             audioFile = try AVAudioFile(forReading: fileURL)
@@ -454,6 +478,15 @@ class VinylEngine: ObservableObject {
             }
         }
         isPlaying = true
+        // Trigger the "just-dropped" crackle ramp when we're starting playback
+        // from the top of a buffer that has the needle drop prefix. Guard on
+        // both conditions: `needleDropFrameCount > 0` means the buffer actually
+        // contains a drop sample, and `pausedPosition < 0.5` ensures we're
+        // beginning at (or very close to) the top — so seeking into the middle
+        // of a track doesn't re-trigger the ramp.
+        if needleDropMode != .bypass && needleDropFrameCount > 0 && pausedPosition < 0.5 {
+            startCrackleRamp()
+        }
         startProgressTimer()
         startDriftTimer()
         startWow()
@@ -571,13 +604,26 @@ class VinylEngine: ObservableObject {
             return
         }
         var phase: Double = 0
-        let w = Double(params.wear) / 100
-        let m = Double(params.masterIntensity) / 100
-        let wowD = (0.004 + w * 0.035) * Double(params.wowDepth) / 100 * m
-        let flutD = (0.002 + w * 0.02) * Double(params.flutter) / 100 * m
-        let warpD = (0.006 + w * 0.05) * Double(params.warpWow) / 100 * m
+        // IMPORTANT: the modulation depths (wowD / flutD / warpD) are intentionally
+        // computed INSIDE the timer closure on every tick, not captured once up
+        // front. Previously they were captured as constants when startWow() was
+        // called, which meant moving the wow depth / flutter / warp wow sliders
+        // during playback had no audible effect — the timer was "frozen" on
+        // whichever values the params happened to hold at playback-start time.
+        // The symptom: after playing with the sliders, setting them back to 0
+        // would NOT silence the effect; only toggling bypass (which reseeks and
+        // re-runs startWow) cleared them.
+        //
+        // Reading the params live on each 50 ms tick is negligible CPU cost and
+        // makes these sliders behave like every other slider — move them, hear
+        // the change, set them to 0, they stop.
         wowTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             guard let self = self, self.isPlaying else { return }
+            let w = Double(self.params.wear) / 100
+            let m = Double(self.params.masterIntensity) / 100
+            let wowD  = (0.004 + w * 0.035) * Double(self.params.wowDepth) / 100 * m
+            let flutD = (0.002 + w * 0.02)  * Double(self.params.flutter)  / 100 * m
+            let warpD = (0.006 + w * 0.05)  * Double(self.params.warpWow)  / 100 * m
             phase += 0.05
             let combined = 1.0 + wowD * sin(2 * Double.pi * 0.4 * phase) + flutD * sin(2 * Double.pi * 8 * phase) + warpD * sin(2 * Double.pi * 0.25 * phase) + self.driftOffset
             let clamped = max(0.97, min(1.03, combined))
@@ -605,6 +651,15 @@ class VinylEngine: ObservableObject {
         currentPreset = preset
         params = preset.params
         monoMode = (preset.id == "78rpm")
+        // Needle drop preset carries engine-level state beyond VinylParameters:
+        // it auto-engages the stylus-drop sound so the preset feels "complete"
+        // without needing the user to also tap the needle drop button. We only
+        // force this when the button is currently OFF — if the user has already
+        // dialed in ND2/ND3/ND4, preserve their choice.
+        if preset.id == "needledrop" && needleDropMode == .bypass {
+            needleDropMode = .drop1
+            rebuildBufferWithNeedleDrop()
+        }
         updateVinylParams()
         updateAmpParams()
         scheduleNoiseUpdate()
@@ -710,7 +765,11 @@ class VinylEngine: ObservableObject {
         let active = !isBypassed
         hissPlayer.volume = active ? Float((0.01 + Double(w) * 0.08) * Double(params.hiss) / 100 * Double(m)) * 2 : 0
         rumblePlayer.volume = active ? Float((0.02 + Double(w) * 0.22) * Double(params.rumble) / 100 * Double(m)) * 1.5 : 0
-        cracklePlayer.volume = active ? Float((0.08 + Double(w) * 0.55) * Double(params.crackle) / 100 * Double(m)) * 1.0 : 0
+        // Multiplied by crackleBoost so the "just dropped" ramp can temporarily
+        // elevate crackle above the preset's steady-state level — see
+        // startCrackleRamp(). When no ramp is active, crackleBoost == 1.0 and
+        // this term is a no-op, preserving the previous behavior exactly.
+        cracklePlayer.volume = active ? Float((0.08 + Double(w) * 0.55) * Double(params.crackle) / 100 * Double(m)) * 1.0 * crackleBoost : 0
     }
 
     private var monoModeBeforeBypass = false
@@ -776,6 +835,34 @@ class VinylEngine: ObservableObject {
         }
     }
 
+    /// Starts (or restarts) the "just dropped" crackle ramp.
+    /// Invalidates any in-flight ramp first so repeat triggers don't stack.
+    /// Timer ticks every 100 ms and self-terminates when the 10 s window
+    /// has elapsed, settling `crackleBoost` exactly at 1.0.
+    private func startCrackleRamp() {
+        crackleRampTimer?.invalidate()
+        crackleRampStartTime = Date()
+        crackleBoost = Self.crackleRampInitialBoost
+        updateNoiseParams()
+        crackleRampTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
+            guard let self = self, let start = self.crackleRampStartTime else {
+                timer.invalidate(); return
+            }
+            let elapsed = Date().timeIntervalSince(start)
+            let progress = min(1.0, elapsed / Self.crackleRampSeconds)
+            // Linear decay from initialBoost down to 1.0
+            self.crackleBoost = Self.crackleRampInitialBoost
+                              - Float(progress) * (Self.crackleRampInitialBoost - 1.0)
+            self.updateNoiseParams()
+            if progress >= 1.0 {
+                self.crackleBoost = 1.0
+                self.crackleRampStartTime = nil
+                self.crackleRampTimer = nil
+                timer.invalidate()
+            }
+        }
+    }
+
     /// Current playback time adjusted for needle drop offset (music-relative)
     var needleDropAdjustedTime: Double {
         let ndSec = Double(needleDropFrameCount) / sampleRate
@@ -826,9 +913,37 @@ class VinylEngine: ObservableObject {
         return out
     }
 
-    /// Prepend needle drop buffer to music buffer with intensity-based volume and rolloff fade
-    private func prependNeedleDrop(_ nd: AVAudioPCMBuffer, to music: AVAudioPCMBuffer, intensity: Float) -> AVAudioPCMBuffer {
+    /// Prepend needle drop buffer to music buffer with intensity-based volume and rolloff fade.
+    ///
+    /// IMPORTANT — sample rate handling: the needle drop WAVs ship at 44.1 kHz,
+    /// but music tracks can be 44.1 kHz or 48 kHz (or higher). Previously we
+    /// memcpy'd needle drop samples directly into a buffer that claimed the
+    /// music's sample rate, which on 48 kHz tracks played the needle drop back
+    /// ~8.8% too fast — the shifted-up high-frequency transients sounded like
+    /// squeaking/whistling. The fix below resamples the needle drop buffer to
+    /// the music's sample rate (via AVAudioConverter) before prepending, so
+    /// the two halves of the combined buffer are always at the same rate.
+    private func prependNeedleDrop(_ rawNd: AVAudioPCMBuffer, to music: AVAudioPCMBuffer, intensity: Float) -> AVAudioPCMBuffer {
         let sr = music.format.sampleRate
+        // Resample needle drop to music's sample rate if they differ. If the
+        // conversion fails for any reason, fall back to the original buffer —
+        // same behavior as before this fix, just with the known artifact.
+        let nd: AVAudioPCMBuffer = {
+            if rawNd.format.sampleRate == sr { return rawNd }
+            guard let targetFmt = AVAudioFormat(standardFormatWithSampleRate: sr, channels: rawNd.format.channelCount),
+                  let converter = AVAudioConverter(from: rawNd.format, to: targetFmt) else { return rawNd }
+            let ratio = sr / rawNd.format.sampleRate
+            let outCapacity = AVAudioFrameCount(Double(rawNd.frameLength) * ratio) + 16 // small padding
+            guard let dest = AVAudioPCMBuffer(pcmFormat: targetFmt, frameCapacity: outCapacity) else { return rawNd }
+            var consumed = false
+            let status = converter.convert(to: dest, error: nil) { _, outStatus in
+                if consumed { outStatus.pointee = .noDataNow; return nil }
+                outStatus.pointee = .haveData
+                consumed = true
+                return rawNd
+            }
+            return (status != .error) ? dest : rawNd
+        }()
         let ndFrames = nd.frameLength
         let musicFrames = music.frameLength
         let totalFrames = ndFrames + musicFrames

@@ -17,6 +17,7 @@
 		931C4BD32F7096CC0035EE0A /* not_srv.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 931C4BD02F7096CC0035EE0A /* not_srv.mp4 */; };
 		931C4BD42F7096CC0035EE0A /* one_night_in_france.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 931C4BD12F7096CC0035EE0A /* one_night_in_france.mp3 */; };
 		931C4BD52F7096CC0035EE0A /* a_neon_flesh.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 931C4BCE2F7096CC0035EE0A /* a_neon_flesh.mp3 */; };
+		BJB01 /* big_bad_john.flac in Resources */ = {isa = PBXBuildFile; fileRef = BJ01 /* big_bad_john.flac */; };
 		93317E602F72204B004A6108 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 93317E5F2F72204B004A6108 /* Assets.xcassets */; };
 		A001 /* VinylApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001 /* VinylApp.swift */; };
 		A002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002 /* ContentView.swift */; };
@@ -43,6 +44,7 @@
 		931C4BCF2F7096CC0035EE0A /* easiness.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = easiness.mp3; sourceTree = "<group>"; };
 		931C4BD02F7096CC0035EE0A /* not_srv.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = not_srv.mp4; sourceTree = "<group>"; };
 		931C4BD12F7096CC0035EE0A /* one_night_in_france.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = one_night_in_france.mp3; sourceTree = "<group>"; };
+		BJ01 /* big_bad_john.flac */ = {isa = PBXFileReference; lastKnownFileType = file; path = big_bad_john.flac; sourceTree = "<group>"; };
 		93317E5F2F72204B004A6108 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B001 /* VinylApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VinylApp.swift; sourceTree = "<group>"; };
 		B002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -102,6 +104,7 @@
 				931C4BCF2F7096CC0035EE0A /* easiness.mp3 */,
 				931C4BD02F7096CC0035EE0A /* not_srv.mp4 */,
 				931C4BD12F7096CC0035EE0A /* one_night_in_france.mp3 */,
+				BJ01 /* big_bad_john.flac */,
 			);
 			path = Vinyl;
 			sourceTree = "<group>";
@@ -232,6 +235,7 @@
 				931C4BD32F7096CC0035EE0A /* not_srv.mp4 in Resources */,
 				931C4BD42F7096CC0035EE0A /* one_night_in_france.mp3 in Resources */,
 				931C4BD52F7096CC0035EE0A /* a_neon_flesh.mp3 in Resources */,
+				BJB01 /* big_bad_john.flac in Resources */,
 				NDB01 /* needle_drop_1.wav in Resources */,
 				NDB02 /* needle_drop_2.wav in Resources */,
 				NDB03 /* needle_drop_3.wav in Resources */,

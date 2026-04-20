@@ -41,6 +41,14 @@ struct ContentView: View {
             SettingsView()
         }
         .onAppear {
+            // GOTCHA: `.onAppear` fires every time the view enters the SwiftUI
+            // hierarchy — NOT just once at app launch. Audio route changes
+            // (e.g., plugging in USB-C audio / swapping cables) can cause
+            // SwiftUI to re-evaluate this view and fire `.onAppear` again,
+            // which would overwrite whatever the user was listening to with
+            // the default track. Guard on `currentTrack == nil` so we only
+            // seed the default sample on a genuine cold start.
+            guard engine.currentTrack == nil else { return }
             if let sagan = SampleTrack.library.first(where: { $0.id == "sagan" }) {
                 engine.loadTrack(sagan)
             }

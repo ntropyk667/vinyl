@@ -177,25 +177,33 @@ struct EffectSectionsView: View {
             }
             EffectSection(title: "amplifier", badge: "tube simulation", id: "amp", open: $open) {
                 AmpSubLabel("preamp tube")
-                EffectSlider(label: "tube warmth", sub: "upper bass fullness", info: "Real tubes clip asymmetrically - harder on one phase than the other. This produces even-order harmonics (octaves) which sound musical and warm rather than harsh.", value: Binding(get: { engine.params.saturation }, set: { engine.params.saturation=$0; engine.updateAmpParams() }))
+                EffectSlider(label: "tube warmth", sub: "upper bass fullness", info: "Real tubes clip asymmetrically - harder on one phase than the other. This produces even-order harmonics (octaves) which sound musical and warm rather than harsh.", value: Binding(get: { engine.params.saturation }, set: { engine.params.saturation=$0; engine.updateAmpParams() }),
+                             isDisabled: !engine.preampOn,
+                             onInteract: { engine.preampOn = true; engine.updateAmpParams() })
                 // Binds to the independent `airRolloff` parameter (drives tubeAirEQ).
                 // Previously shared `hfRolloff` with the tonal-character slider, which
                 // caused both sliders to move together. Now they're decoupled: the
                 // tonal "hf rolloff" still drives lpFilter, and this amp "air rolloff"
                 // drives only the high-frequency tube softening around tubeAirEQ.
-                EffectSlider(label: "air rolloff", sub: "soft treble above 10kHz", info: "Tube stages saturate more at high frequencies. A pre-emphasis boost before the waveshaper and compensating cut after makes highs distort before lows - the key difference between real tube warmth and digital clipping.", value: Binding(get: { engine.params.airRolloff }, set: { engine.params.airRolloff=$0; engine.updateAmpParams() }))
+                EffectSlider(label: "air rolloff", sub: "soft treble above 10kHz", info: "Tube stages saturate more at high frequencies. A pre-emphasis boost before the waveshaper and compensating cut after makes highs distort before lows - the key difference between real tube warmth and digital clipping.", value: Binding(get: { engine.params.airRolloff }, set: { engine.params.airRolloff=$0; engine.updateAmpParams() }),
+                             isDisabled: !engine.preampOn,
+                             onInteract: { engine.preampOn = true; engine.updateAmpParams() })
                 // Binds to the independent `microphonics` parameter (drives microEQ).
                 // Previously shared `roomResonance` with the cartridge-section slider
                 // AND with speaker coupling below, so moving any of the three moved
                 // all three. Now each has its own variable.
-                EffectSlider(label: "microphonics", sub: "tube vibration resonance", info: "Tubes are physically sensitive to vibration. The stylus groove noise mechanically excites the tube, which re-amplifies that resonance back into the signal - a subtle feedback bloom.", value: Binding(get: { engine.params.microphonics }, set: { engine.params.microphonics=$0; engine.updateAmpParams() }))
+                EffectSlider(label: "microphonics", sub: "tube vibration resonance", info: "Tubes are physically sensitive to vibration. The stylus groove noise mechanically excites the tube, which re-amplifies that resonance back into the signal - a subtle feedback bloom.", value: Binding(get: { engine.params.microphonics }, set: { engine.params.microphonics=$0; engine.updateAmpParams() }),
+                             isDisabled: !engine.preampOn,
+                             onInteract: { engine.preampOn = true; engine.updateAmpParams() })
                 AmpSubLabel("power amp")
                 // Binds to the independent `outputTransformer` parameter (drives xformerEQ).
                 // Previously shared `rumble` with the noise-floor slider, so moving
                 // the noise-floor rumble slider also moved this one. Now decoupled:
                 // noise-floor rumble stays on rumblePlayer.volume, this one stays on
                 // xformerEQ's bass-bloom band.
-                EffectSlider(label: "output transformer", sub: "low-end bloom", info: "Output transformers saturate on bass transients, creating a low-end bloom and compression around 80-120Hz. Bass notes swell and breathe rather than hitting a hard wall.", value: Binding(get: { engine.params.outputTransformer }, set: { engine.params.outputTransformer=$0; engine.updateAmpParams() }))
+                EffectSlider(label: "output transformer", sub: "low-end bloom", info: "Output transformers saturate on bass transients, creating a low-end bloom and compression around 80-120Hz. Bass notes swell and breathe rather than hitting a hard wall.", value: Binding(get: { engine.params.outputTransformer }, set: { engine.params.outputTransformer=$0; engine.updateAmpParams() }),
+                             isDisabled: !engine.powerampOn,
+                             onInteract: { engine.powerampOn = true; engine.updateAmpParams() })
                 // Binds to the independent `classADrive` parameter (drives satNode, an
                 // AVAudioUnitDistortion with a cubic soft-clip preset). Previously this
                 // slider shared `saturation` with "tube warmth" AND its underlying DSP
@@ -203,12 +211,16 @@ struct EffectSectionsView: View {
                 // no audible effect of its own. Now it has its own variable AND its own
                 // audio effect: subtle cubic soft-clipping that approximates Class A
                 // dynamic compression (transients get gently squashed).
-                EffectSlider(label: "class A drive", sub: "dynamic compression", info: "Class A amplifiers run at constant high bias, compressing dynamics musically. The amp breathes with the music - loud transients get gently squashed in a way that feels alive.", value: Binding(get: { engine.params.classADrive }, set: { engine.params.classADrive=$0; engine.updateAmpParams() }))
+                EffectSlider(label: "class A drive", sub: "dynamic compression", info: "Class A amplifiers run at constant high bias, compressing dynamics musically. The amp breathes with the music - loud transients get gently squashed in a way that feels alive.", value: Binding(get: { engine.params.classADrive }, set: { engine.params.classADrive=$0; engine.updateAmpParams() }),
+                             isDisabled: !engine.powerampOn,
+                             onInteract: { engine.powerampOn = true; engine.updateAmpParams() })
                 // Binds to the independent `speakerCoupling` parameter (drives speakerEQ).
                 // Previously shared `roomResonance` with the cartridge-section slider
                 // AND with microphonics above — three sliders, one variable. Now each
                 // has its own.
-                EffectSlider(label: "speaker coupling", sub: "impedance interaction", info: "Tube amps have high output impedance, so the speaker impedance curve shapes the frequency response. Certain frequencies get boosted depending on the speaker - the sound of a specific amp/speaker pairing.", value: Binding(get: { engine.params.speakerCoupling }, set: { engine.params.speakerCoupling=$0; engine.updateAmpParams() }))
+                EffectSlider(label: "speaker coupling", sub: "impedance interaction", info: "Tube amps have high output impedance, so the speaker impedance curve shapes the frequency response. Certain frequencies get boosted depending on the speaker - the sound of a specific amp/speaker pairing.", value: Binding(get: { engine.params.speakerCoupling }, set: { engine.params.speakerCoupling=$0; engine.updateAmpParams() }),
+                             isDisabled: !engine.powerampOn,
+                             onInteract: { engine.powerampOn = true; engine.updateAmpParams() })
             }
         }
     }
@@ -241,16 +253,43 @@ struct EffectSection<Content: View>: View {
 
 struct EffectSlider: View {
     let label: String; let sub: String; let info: String; @Binding var value: Float
+    /// When true, the slider appears dimmed (greyed text and muted track color)
+    /// to signal that its section is currently inactive. Dragging a disabled
+    /// slider still works — it just fires `onInteract` FIRST so the caller can
+    /// re-enable the section (e.g., turning the preamp tube back on) before
+    /// the value change takes effect. Default `false` so existing call sites
+    /// that don't pass this param remain unchanged.
+    var isDisabled: Bool = false
+    /// Called once at the START of each drag while the slider is disabled.
+    /// Typical use: flip a tube on. No-op by default.
+    var onInteract: () -> Void = {}
     @State private var showInfo = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        // Wrap the external binding so we can intercept writes. While disabled,
+        // the first write in a drag fires `onInteract` (so the section turns
+        // back on), then forwards the new value normally. Writes while the
+        // slider is already enabled pass through untouched.
+        let proxy = Binding<Float>(
+            get: { value },
+            set: { newValue in
+                if isDisabled { onInteract() }
+                value = newValue
+            }
+        )
+        // Dim palette when the section is off. Keeps the same hues so the
+        // slider still reads as the same control, just visibly muted.
+        let labelColor = isDisabled ? Color(hex: "5a5856") : Color(hex: "9a9690")
+        let subColor   = isDisabled ? Color(hex: "3a3836") : Color(hex: "5a5856")
+        let accent     = isDisabled ? Color(hex: "5a5856") : Color(hex: "c8b89a")
+        let valueColor = isDisabled ? Color(hex: "3a3836") : Color(hex: "5a5856")
+        return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(label).font(.system(size: 11, design: .monospaced)).foregroundColor(Color(hex: "9a9690"))
-                    Text(sub).font(.system(size: 9, design: .monospaced)).foregroundColor(Color(hex: "5a5856"))
+                    Text(label).font(.system(size: 11, design: .monospaced)).foregroundColor(labelColor)
+                    Text(sub).font(.system(size: 9, design: .monospaced)).foregroundColor(subColor)
                 }.frame(width: 130, alignment: .leading)
-                Slider(value: $value, in: 0...100).accentColor(Color(hex: "c8b89a"))
-                Text("\(Int(value))").font(.system(size: 10, design: .monospaced)).foregroundColor(Color(hex: "5a5856")).frame(width: 24, alignment: .trailing)
+                Slider(value: proxy, in: 0...100).accentColor(accent)
+                Text("\(Int(value))").font(.system(size: 10, design: .monospaced)).foregroundColor(valueColor).frame(width: 24, alignment: .trailing)
                 Button(action: { showInfo.toggle() }) {
                     Image(systemName: "info.circle")
                         .font(.system(size: 12))
