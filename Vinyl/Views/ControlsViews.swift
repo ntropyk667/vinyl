@@ -115,35 +115,58 @@ struct MasterControlsView: View {
     @ObservedObject var engine: VinylEngine
     var body: some View {
         VStack(spacing: 6) {
-            MasterSliderRow(label: "record wear", sub: "shifts all effect floors",
-                value: Binding(get: { engine.params.wear }, set: { engine.params.wear = $0; engine.updateVinylParams() }),
-                display: { v in "\(Int(v))% — \(wearLabel(v))" })
+            MasterSliderRow(label: "record wear", sub: "physical record degradation",
+                value: Binding(get: { engine.params.wear }, set: { engine.params.wear = $0; engine.updateVinylParams(); engine.updateNoiseParams() }),
+                display: { v in "\(Int(v))%" },
+                info: "Adds to rumble, crackle, HF rolloff, RIAA variance, wow depth, and warp wow — simulating groove degradation, surface noise, and physical deformation of a well-played record. Hiss is equipment noise and is unaffected.")
             MasterSliderRow(label: "master intensity", sub: "scales all effects",
                 value: Binding(get: { engine.params.masterIntensity }, set: { engine.params.masterIntensity = $0; engine.updateAllParams() }),
                 display: { v in "\(Int(v))" })
         }
     }
-    private func wearLabel(_ v: Float) -> String {
-        let l = ["pristine","pristine","lightly worn","lightly worn","lightly worn","well played","well played","heavily worn","heavily worn","degraded"]
-        return l[min(9, Int(v/10))]
-    }
 }
 
 struct MasterSliderRow: View {
     let label: String; let sub: String; @Binding var value: Float; let display: (Float) -> String
+    var info: String = ""
+    @State private var showInfo = false
     var body: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label).font(.system(size: 11, weight: .medium, design: .monospaced)).foregroundColor(Color(hex: "9a9690"))
-                Text(sub).font(.system(size: 10, design: .monospaced)).foregroundColor(Color(hex: "5a5856"))
-            }.frame(width: 120, alignment: .leading)
-            Slider(value: $value, in: 0...100).accentColor(Color(hex: "c8b89a"))
-            Text(display(value)).font(.system(size: 10, design: .monospaced)).foregroundColor(Color(hex: "5a5856")).frame(width: 80, alignment: .trailing)
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label).font(.system(size: 11, weight: .medium, design: .monospaced)).foregroundColor(Color(hex: "9a9690"))
+                    Text(sub).font(.system(size: 10, design: .monospaced)).foregroundColor(Color(hex: "5a5856"))
+                }.frame(width: 120, alignment: .leading)
+                Slider(value: $value, in: 0...100).accentColor(Color(hex: "c8b89a"))
+                Text(display(value)).font(.system(size: 10, design: .monospaced)).foregroundColor(Color(hex: "5a5856")).frame(width: 24, alignment: .trailing)
+                // Always reserve the info button width so both slider rows are identical length.
+                // Invisible (clear) when this row has no info text.
+                Button(action: { showInfo.toggle() }) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 12))
+                        .foregroundColor(info.isEmpty ? Color.clear : (showInfo ? Color(hex: "c8b89a") : Color(hex: "3a3836")))
+                }
+                .disabled(info.isEmpty)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            if showInfo && !info.isEmpty {
+                Text(info)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(Color(hex: "9a9690"))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(hex: "0e0e0e"))
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color(hex: "c8b89a").opacity(0.2), lineWidth: 0.5))
+                    .cornerRadius(5)
+                    .padding(.horizontal, 14).padding(.bottom, 10)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
         .background(Color(hex: "161616"))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.08), lineWidth: 0.5))
         .cornerRadius(8)
+        .animation(.easeInOut(duration: 0.15), value: showInfo)
     }
 }
 

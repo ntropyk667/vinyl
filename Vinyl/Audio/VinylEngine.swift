@@ -21,7 +21,7 @@ class VinylEngine: ObservableObject {
 
     // Needle Drop
     enum NeedleDropMode: Int, CaseIterable {
-        case bypass = 0, drop1, drop2, drop3, drop4
+        case bypass = 0, drop1, drop4
         var next: NeedleDropMode {
             let all = NeedleDropMode.allCases
             let idx = (rawValue + 1) % all.count
@@ -31,9 +31,7 @@ class VinylEngine: ObservableObject {
             switch self {
             case .bypass: return "OFF"
             case .drop1: return "ND1"
-            case .drop2: return "ND2"
-            case .drop3: return "ND3"
-            case .drop4: return "ND4"
+            case .drop4: return "ND2"
             }
         }
     }
@@ -41,25 +39,49 @@ class VinylEngine: ObservableObject {
     private var needleDropBuffers: [AVAudioPCMBuffer] = []
     /// Number of frames the needle drop prepended (0 when bypass)
     private(set) var needleDropFrameCount: AVAudioFrameCount = 0
-    private let needleDropFiles = ["needle_drop_1", "needle_drop_2", "needle_drop_3", "needle_drop_4"]
+    private let needleDropFiles = ["needle_drop_1", "needle_drop_4"]
+    /// When true, updateNoiseParams() skips setting hissPlayer.volume so the needle drop
+    /// hiss delay/fade-in isn't overridden by scheduled noise updates.
+    private var hissDelayActive = false
+    /// Peak amplitude timestamps (in seconds) for each needle drop file, analyzed from the WAV data.
+    /// Hiss fades in starting at this offset so it only begins once the needle has settled
+    /// into the groove — matching real vinyl behavior where surface noise starts with groove contact.
+    /// Peak amplitude timestamps (in seconds) for nd1 and nd4, analyzed from WAV data.
+    /// Hiss fades in at this offset so it only begins once the needle settles into the groove.
+    /// Values: nd1=1.083s, nd4=0.271s
+    private let needleDropHissPeakSec: [Double] = [1.083, 0.271]
+    /// Hiss fade-in duration (seconds) per needle drop file. 100ms for both.
+    private let needleDropHissFadeSec: [Double] = [0.1, 0.1]
 
     // MARK: Crackle "just dropped" ramp
     //
-    // When the stylus first lands, real records have a bunch of surface debris
-    // that clears out over the first several seconds of playback. We emulate
-    // that by linearly decaying a crackle-volume multiplier from `initialBoost`
-    // down to 1.0 over `rampSeconds`, starting when playback begins near the
-    // top of a buffer that has the needle drop prefix.
+    // Two-phase envelope applied to the crackle-volume multiplier when
+    // playback begins from the top of a buffer that has the needle drop
+    // prefix:
+    //
+    //   Phase 1 (0 .. gateSeconds):          boost = 0    (crackle muted)
+    //   Phase 2 (gate .. gate+rampSeconds):  boost = linear 0.5 -> 1.0
+    //   Phase 3 (after):                     boost = 1    (normal level)
+    //
+    // This pairs with the needle-drop sample's own 1.0 -> 0.5 linear envelope
+    // (see prependNeedleDrop). During phase 1 the stylus-drop lands alone.
+    // At the phase boundary (t = gate) the drop is still playing at ~75%
+    // of its volume, and crackle enters at 50% of the slider level to
+    // cover the drop's tail. Across phase 2 the drop tapers to 50% and the
+    // crackle climbs to 100%, producing a smooth hand-off rather than an
+    // abrupt start.
     //
     // `crackleBoost` is multiplied into the crackle volume inside
     // updateNoiseParams(), so it composes cleanly with whatever the user's
-    // crackle slider is set to — if they move the slider mid-ramp, the target
-    // level slides with them while the ramp keeps tapering toward 1.0×.
+    // crackle slider is set to — if they move the slider mid-ramp, the
+    // target level slides with them while the envelope keeps climbing.
     private var crackleBoost: Float = 1.0
     private var crackleRampStartTime: Date?
     private var crackleRampTimer: Timer?
-    private static let crackleRampSeconds: Double = 10.0
-    private static let crackleRampInitialBoost: Float = 2.0
+    /// Seconds of silence at the start of the envelope (stylus lands alone).
+    private static let crackleRampGateSeconds: Double = 1.0
+    /// Seconds over which the crackle fades from 0 -> 1 after the gate.
+    private static let crackleRampSeconds: Double = 1.0
 
     // Converter state
     @Published var isConverting = false
@@ -398,6 +420,21 @@ class VinylEngine: ObservableObject {
     }
 
     func startPlayback() {
+        // If bypass is engaged and the current buffer has a needle-drop
+        // prefix, fast-forward past the prefix so the stylus-drop sound
+        // isn't heard. The buffer still contains the prefix frames (so
+        // toggling bypass off mid-track doesn't require a rebuild) — we
+        // just seek past them. Only do this when we'd otherwise be about
+        // to start playing *inside* the prefix; if the user seeked past
+        // it already, leave pausedPosition alone.
+        if isBypassed, needleDropMode != .bypass, needleDropFrameCount > 0 {
+            let ndDur = Double(needleDropFrameCount) / sampleRate
+            if pausedPosition < ndDur {
+                pausedPosition = ndDur
+                currentTime = ndDur
+            }
+        }
+
         // For podcast files: load the correct chunk from disk
         let isPodcast = podcastFileURL != nil
         if isPodcast, audioFile != nil {
@@ -466,6 +503,41 @@ class VinylEngine: ObservableObject {
         if !hissPlayer.isPlaying { hissPlayer.play() }
         if !rumblePlayer.isPlaying { rumblePlayer.play() }
         if !cracklePlayer.isPlaying { cracklePlayer.play() }
+        // If a needle drop is active and we're starting from the beginning, suppress hiss
+        // until the needle peak timestamp, then fade in over 100ms. This matches real vinyl
+        // where surface noise only begins once the stylus contacts the groove.
+        // pausedPosition < needleDropDuration means we're in the needle drop prefix.
+        let ndIdx = needleDropMode.rawValue - 1
+        let ndDurSec = Double(needleDropFrameCount) / (audioFile?.fileFormat.sampleRate ?? 44100)
+        if needleDropMode != .bypass, ndIdx >= 0, ndIdx < needleDropHissPeakSec.count, pausedPosition < ndDurSec {
+            let peakDelay = needleDropHissPeakSec[ndIdx]
+            let targetVolume = hissPlayer.volume
+            hissDelayActive = true
+            hissPlayer.volume = 0
+            DispatchQueue.main.asyncAfter(deadline: .now() + peakDelay) { [weak self] in
+                guard let self = self, self.isPlaying else {
+                    self?.hissDelayActive = false
+                    return
+                }
+                let fadeDur = ndIdx < self.needleDropHissFadeSec.count ? self.needleDropHissFadeSec[ndIdx] : 0.1
+                let steps = 10
+                let interval = fadeDur / Double(steps)
+                var step = 0
+                Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] timer in
+                    guard let self = self, self.isPlaying else { timer.invalidate(); self?.hissDelayActive = false; return }
+                    step += 1
+                    // Exponential curve (squared) so the fade sounds natural to human hearing.
+                    // Linear ramps sound like a switch; exponential starts near-silent and
+                    // accelerates upward, matching how we perceive volume changes.
+                    let progress = Float(step) / Float(steps)
+                    self.hissPlayer.volume = targetVolume * progress * progress
+                    if step >= steps {
+                        self.hissDelayActive = false
+                        timer.invalidate()
+                    }
+                }
+            }
+        }
         if !hasWarmedUp {
             hasWarmedUp = true
             let steps = 50
@@ -480,11 +552,20 @@ class VinylEngine: ObservableObject {
         isPlaying = true
         // Trigger the "just-dropped" crackle ramp when we're starting playback
         // from the top of a buffer that has the needle drop prefix. Guard on
-        // both conditions: `needleDropFrameCount > 0` means the buffer actually
-        // contains a drop sample, and `pausedPosition < 0.5` ensures we're
-        // beginning at (or very close to) the top — so seeking into the middle
-        // of a track doesn't re-trigger the ramp.
-        if needleDropMode != .bypass && needleDropFrameCount > 0 && pausedPosition < 0.5 {
+        // multiple conditions:
+        //   * needleDropFrameCount > 0  — buffer actually contains a drop sample
+        //   * pausedPosition < 0.5      — starting at/near the top (seeking into
+        //                                 the middle of a track shouldn't re-arm
+        //                                 the ramp)
+        //   * !isBypassed               — no point scheduling an envelope when
+        //                                 crackle is silenced by bypass anyway,
+        //                                 and the bypass-skip block above has
+        //                                 already moved pausedPosition past the
+        //                                 prefix in that case
+        if needleDropMode != .bypass
+            && needleDropFrameCount > 0
+            && pausedPosition < 0.5
+            && !isBypassed {
             startCrackleRamp()
         }
         startProgressTimer()
@@ -531,7 +612,38 @@ class VinylEngine: ObservableObject {
     func restart() { seek(to: 0) }  // starts from needle drop if active
 
     private func handleEnd() {
-        // Buffer finished naturally.
+        // Buffer-complete callback fired. Before assuming the buffer finished
+        // naturally, check whether we're anywhere near the actual end.
+        //
+        // GOTCHA: AVAudioPlayerNode's buffer-complete callback can fire
+        // prematurely when the audio graph is reconfigured — most commonly
+        // when the user plugs in or swaps an audio device (USB-C headphones,
+        // AirPods, cable swap). In that scenario `currentTime` is nowhere
+        // near `duration`, but the completion handler still runs, which
+        // used to advance to the next library track. The user perceived
+        // this as a "track skip" on plug-in.
+        //
+        // If we're more than 1.0 s short of `duration`, treat the callback
+        // as a route-change glitch and re-schedule the SAME buffer from the
+        // current position instead of advancing. The 50 ms dispatch delay
+        // mirrors the one in seek() — it gives the engine time to settle
+        // after the route reconfiguration before rescheduling.
+        let resumePosition = currentTime
+        let looksPremature = resumePosition < duration - 1.0
+        if looksPremature {
+            progressTimer?.invalidate(); progressTimer = nil
+            driftTimer?.invalidate(); driftTimer = nil
+            wowTimer?.invalidate(); wowTimer = nil
+            isPlaying = false
+            pausedPosition = resumePosition
+            playerNode.stop()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                self?.startPlayback()
+            }
+            return
+        }
+
+        // Natural end of buffer.
         isPlaying = false
         progressTimer?.invalidate(); progressTimer = nil
         driftTimer?.invalidate(); driftTimer = nil
@@ -621,9 +733,14 @@ class VinylEngine: ObservableObject {
             guard let self = self, self.isPlaying else { return }
             let w = Double(self.params.wear) / 100
             let m = Double(self.params.masterIntensity) / 100
-            let wowD  = (0.004 + w * 0.035) * Double(self.params.wowDepth) / 100 * m
-            let flutD = (0.002 + w * 0.02)  * Double(self.params.flutter)  / 100 * m
-            let warpD = (0.006 + w * 0.05)  * Double(self.params.warpWow)  / 100 * m
+            // Additive wear model: wear shifts wowDepth and warpWow upward (capped at 100).
+            // Scale factors (0.039 / 0.056) match the old formula's maximums.
+            // Flutter is bearing-related (not record wear), so it keeps the old multiplier.
+            let effectiveWow  = min(Double(self.params.wowDepth) + Double(self.params.wear), 100) / 100
+            let effectiveWarp = min(Double(self.params.warpWow)  + Double(self.params.wear), 100) / 100
+            let wowD  = effectiveWow  * 0.039 * m
+            let flutD = (0.002 + w * 0.02) * Double(self.params.flutter) / 100 * m
+            let warpD = effectiveWarp * 0.056 * m
             phase += 0.05
             let combined = 1.0 + wowD * sin(2 * Double.pi * 0.4 * phase) + flutD * sin(2 * Double.pi * 8 * phase) + warpD * sin(2 * Double.pi * 0.25 * phase) + self.driftOffset
             let clamped = max(0.97, min(1.03, combined))
@@ -727,13 +844,17 @@ class VinylEngine: ObservableObject {
             riaaEQ.bands[0].gain = 0
             return
         }
-        let w = params.wear / 100
         let m = params.masterIntensity / 100
-        let cutoff = max(600.0, 18000.0 - Double(w) * 11000 - Double(params.hfRolloff) / 100 * Double(m) * 13000)
+        // Additive wear model: wear directly shifts hfRolloff and riaaVariance
+        // upward (capped at 100), so moving the wear slider has an audible,
+        // linear effect independent of where the individual sliders are set.
+        let effectiveHfRolloff    = min(params.hfRolloff    + params.wear, 100)
+        let effectiveRiaaVariance = min(params.riaaVariance + params.wear, 100)
+        let cutoff = max(600.0, 18000.0 - Double(effectiveHfRolloff) / 100 * Double(m) * 24000)
         lpFilter.bands[0].frequency = Float(cutoff)
         // satNode.wetDryMix intentionally not set here — see note in the
         // bypass guard above. Class A drive lives in updateAmpParams() now.
-        riaaEQ.bands[0].gain = params.riaaVariance / 100 * m * 6 - 3
+        riaaEQ.bands[0].gain = effectiveRiaaVariance / 100 * m * 6 - 3
         roomEQ.bands[0].gain = params.roomResonance / 100 * m * 3
     }
 
@@ -760,16 +881,25 @@ class VinylEngine: ObservableObject {
     }
 
     func updateNoiseParams() {
-        let w = params.wear / 100
         let m = params.masterIntensity / 100
         let active = !isBypassed
-        hissPlayer.volume = active ? Float((0.01 + Double(w) * 0.08) * Double(params.hiss) / 100 * Double(m)) * 2 : 0
-        rumblePlayer.volume = active ? Float((0.02 + Double(w) * 0.22) * Double(params.rumble) / 100 * Double(m)) * 1.5 : 0
+        // Hiss is phono stage / cartridge noise — equipment noise, not record wear.
+        // It uses the slider value directly, unaffected by wear.
+        // Rumble and crackle use the additive wear model (wear shifts them upward,
+        // capped at 100) since both genuinely worsen as a record degrades.
+        let effectiveRumble  = Double(min(params.rumble  + params.wear, 100)) / 100
+        let effectiveCrackle = Double(min(params.crackle + params.wear, 100)) / 100
+        // Skip hiss volume update while needle drop delay is running — the fade-in
+        // timer in startPlayback() owns hissPlayer.volume until the fade completes.
+        if !hissDelayActive {
+            hissPlayer.volume = active ? Float(Double(params.hiss) / 100 * Double(m)) * 0.18 : 0
+        }
+        rumblePlayer.volume  = active ? Float(effectiveRumble  * Double(m)) * 0.36 : 0
         // Multiplied by crackleBoost so the "just dropped" ramp can temporarily
         // elevate crackle above the preset's steady-state level — see
         // startCrackleRamp(). When no ramp is active, crackleBoost == 1.0 and
         // this term is a no-op, preserving the previous behavior exactly.
-        cracklePlayer.volume = active ? Float((0.08 + Double(w) * 0.55) * Double(params.crackle) / 100 * Double(m)) * 1.0 * crackleBoost : 0
+        cracklePlayer.volume = active ? Float(effectiveCrackle * Double(m)) * 0.63 * crackleBoost : 0
     }
 
     private var monoModeBeforeBypass = false
@@ -837,24 +967,46 @@ class VinylEngine: ObservableObject {
 
     /// Starts (or restarts) the "just dropped" crackle ramp.
     /// Invalidates any in-flight ramp first so repeat triggers don't stack.
-    /// Timer ticks every 100 ms and self-terminates when the 10 s window
-    /// has elapsed, settling `crackleBoost` exactly at 1.0.
+    /// Kicks off the two-phase crackle envelope (see `crackleRampGateSeconds`
+    /// / `crackleRampSeconds` doc comments).
+    ///
+    /// Timer ticks every 50 ms and self-terminates when the full
+    /// gate+ramp window has elapsed, settling `crackleBoost` exactly
+    /// at 1.0. Using wall-clock elapsed time (rather than a counter)
+    /// keeps the envelope accurate even if a tick is dropped.
     private func startCrackleRamp() {
         crackleRampTimer?.invalidate()
         crackleRampStartTime = Date()
-        crackleBoost = Self.crackleRampInitialBoost
+        // Start muted — phase 1 is dead silent so the stylus drop plays alone.
+        crackleBoost = 0
         updateNoiseParams()
-        crackleRampTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
+        crackleRampTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] timer in
             guard let self = self, let start = self.crackleRampStartTime else {
                 timer.invalidate(); return
             }
             let elapsed = Date().timeIntervalSince(start)
-            let progress = min(1.0, elapsed / Self.crackleRampSeconds)
-            // Linear decay from initialBoost down to 1.0
-            self.crackleBoost = Self.crackleRampInitialBoost
-                              - Float(progress) * (Self.crackleRampInitialBoost - 1.0)
+            let gate = Self.crackleRampGateSeconds
+            let ramp = Self.crackleRampSeconds
+            let total = gate + ramp
+            let newBoost: Float
+            if elapsed < gate {
+                // Phase 1 — still muted.
+                newBoost = 0
+            } else if elapsed < total {
+                // Phase 2 — linear 0.5 -> 1.0 across `ramp` seconds. Starts
+                // at 50% of the slider level to mask the tail of the needle
+                // drop (which is itself fading from 100% to 50% by this
+                // point — see prependNeedleDrop), then climbs to full so
+                // the blend is seamless.
+                let rampProgress = (elapsed - gate) / ramp
+                newBoost = 0.5 + Float(rampProgress) * 0.5
+            } else {
+                // Phase 3 — settled at full crackle.
+                newBoost = 1.0
+            }
+            self.crackleBoost = newBoost
             self.updateNoiseParams()
-            if progress >= 1.0 {
+            if elapsed >= total {
                 self.crackleBoost = 1.0
                 self.crackleRampStartTime = nil
                 self.crackleRampTimer = nil
@@ -882,7 +1034,7 @@ class VinylEngine: ObservableObject {
             audioBuffer = buf
             needleDropFrameCount = 0
         } else {
-            let idx = needleDropMode.rawValue - 1  // drop1=0, drop2=1, etc.
+            let idx = needleDropMode.rawValue - 1  // drop1=0, drop4=1
             guard idx >= 0 && idx < needleDropBuffers.count else {
                 audioBuffer = buf
                 needleDropFrameCount = 0
@@ -913,7 +1065,19 @@ class VinylEngine: ObservableObject {
         return out
     }
 
-    /// Prepend needle drop buffer to music buffer with intensity-based volume and rolloff fade.
+    /// Prepend needle drop buffer to music buffer, with an intensity-scaled
+    /// volume and a linear 100% -> 50% envelope across the drop's full length.
+    ///
+    /// ENVELOPE DESIGN: the drop sample's volume decays linearly from
+    /// `intensity` at frame 0 to `intensity * 0.5` at the last frame. This
+    /// replaced an older exponential fade-to-zero on the tail because the
+    /// drop samples are short — a tail fade to zero was almost inaudible on
+    /// short clips, and the drop ended cleanly but clashed with the crackle
+    /// envelope coming in. Halving across the full length means the drop
+    /// stays present (still audible at its boundary with the music) while
+    /// the crackle ramps up to cover it — a proper blend rather than a
+    /// hand-off. The crackle envelope in `startCrackleRamp()` is the other
+    /// half of this blend.
     ///
     /// IMPORTANT — sample rate handling: the needle drop WAVs ship at 44.1 kHz,
     /// but music tracks can be 44.1 kHz or 48 kHz (or higher). Previously we
@@ -923,6 +1087,13 @@ class VinylEngine: ObservableObject {
     /// squeaking/whistling. The fix below resamples the needle drop buffer to
     /// the music's sample rate (via AVAudioConverter) before prepending, so
     /// the two halves of the combined buffer are always at the same rate.
+    ///
+    /// - Parameters:
+    ///   - rawNd: the raw stylus-drop PCM buffer (at its native 44.1 kHz rate).
+    ///   - music: the music buffer to prepend onto.
+    ///   - intensity: overall volume scale for the drop, 0.0–1.0 (driven by
+    ///     the master-intensity slider / 100).
+    /// - Returns: a new buffer containing [scaled+enveloped drop | music].
     private func prependNeedleDrop(_ rawNd: AVAudioPCMBuffer, to music: AVAudioPCMBuffer, intensity: Float) -> AVAudioPCMBuffer {
         let sr = music.format.sampleRate
         // Resample needle drop to music's sample rate if they differ. If the
@@ -953,26 +1124,24 @@ class VinylEngine: ObservableObject {
         out.frameLength = totalFrames
         needleDropFrameCount = ndFrames
 
-        // Fade-out duration scales with intensity: 0% = no fade, 100% = 1.5s fade
-        let fadeDuration = Double(intensity) * 1.5
-        let fadeSamples = Int(fadeDuration * sr)
-        let fadeStart = max(0, Int(ndFrames) - fadeSamples)
+        // Linear volume envelope across the drop: 1.0 at frame 0 down to 0.5
+        // at the last frame. See function doc comment for the design reasoning.
+        // Precompute the divisor once so the inner loop is just a multiply.
+        // max(1, ...) protects against a single-frame drop buffer (would
+        // otherwise divide by zero).
+        let envDenom = Float(max(1, Int(ndFrames) - 1))
 
         for ch in 0..<Int(fmt.channelCount) {
             guard let dst = out.floatChannelData?[ch] else { continue }
 
-            // Copy needle drop with volume scaling and fade
+            // Copy needle drop with intensity + linear envelope.
             if ch < Int(nd.format.channelCount), let ndSrc = nd.floatChannelData?[ch] {
                 for i in 0..<Int(ndFrames) {
-                    var sample = ndSrc[i] * intensity
-                    // Apply fade-out envelope in the tail
-                    if i >= fadeStart && fadeSamples > 0 {
-                        let fadePos = Float(i - fadeStart) / Float(fadeSamples)
-                        // Exponential fade for smooth rolloff
-                        let fadeGain = (1.0 - fadePos) * (1.0 - fadePos)
-                        sample *= fadeGain
-                    }
-                    dst[i] = sample
+                    // envProgress goes 0.0 -> 1.0 across the full drop.
+                    let envProgress = Float(i) / envDenom
+                    // envGain goes 1.0 -> 0.5 (linear).
+                    let envGain = 1.0 - envProgress * 0.5
+                    dst[i] = ndSrc[i] * intensity * envGain
                 }
             } else {
                 // Zero-fill if channel mismatch
@@ -1346,12 +1515,14 @@ class VinylEngine: ObservableObject {
         offEngine.connect(offMixer, to: offEngine.mainMixerNode, format: renderFmt)
 
         // Apply current EQ params to offline chain
-        let w = params.wear / 100
         let m = params.masterIntensity / 100
         if !isBypassed {
-            let cutoff = max(600.0, 18000.0 - Double(w) * 11000 - Double(params.hfRolloff) / 100 * Double(m) * 13000)
+            // Additive wear model — mirrors updateVinylParams() live path.
+            let effectiveHfRolloff    = min(params.hfRolloff    + params.wear, 100)
+            let effectiveRiaaVariance = min(params.riaaVariance + params.wear, 100)
+            let cutoff = max(600.0, 18000.0 - Double(effectiveHfRolloff) / 100 * Double(m) * 24000)
             offLP.bands[0].frequency = Float(cutoff)
-            offRIAA.bands[0].gain = params.riaaVariance / 100 * m * 6 - 3
+            offRIAA.bands[0].gain = effectiveRiaaVariance / 100 * m * 6 - 3
             offRoom.bands[0].gain = params.roomResonance / 100 * m * 3
             let pa = preampOn && !isBypassed
             let pw = powerampOn && !isBypassed
@@ -1362,11 +1533,13 @@ class VinylEngine: ObservableObject {
             offSpeaker.bands[0].gain = pw ? -(params.roomResonance / 100 * m * 0.5) : 0
         }
 
-        // Noise volumes
+        // Noise volumes — additive wear model mirrors updateNoiseParams() live path.
         let active = !isBypassed
-        offHiss.volume = active ? Float((0.01 + Double(w) * 0.08) * Double(params.hiss) / 100 * Double(m)) * 2 : 0
-        offRumble.volume = active ? Float((0.02 + Double(w) * 0.22) * Double(params.rumble) / 100 * Double(m)) * 1.5 : 0
-        offCrackle.volume = active ? Float((0.08 + Double(w) * 0.55) * Double(params.crackle) / 100 * Double(m)) * 1.0 : 0
+        let offEffRumble  = Double(min(params.rumble  + params.wear, Float(100))) / 100
+        let offEffCrackle = Double(min(params.crackle + params.wear, Float(100))) / 100
+        offHiss.volume    = active ? Float(Double(params.hiss) / 100 * Double(m)) * 0.18 : 0
+        offRumble.volume  = active ? Float(offEffRumble  * Double(m)) * 0.36 : 0
+        offCrackle.volume = active ? Float(offEffCrackle * Double(m)) * 0.63 : 0
 
         // Enable offline rendering
         try offEngine.enableManualRenderingMode(.offline, format: renderFmt, maximumFrameCount: 4096)
@@ -1434,9 +1607,12 @@ class VinylEngine: ObservableObject {
         let duration = Double(totalSamples) / sr
         let w = Double(params.wear) / 100
         let m = Double(params.masterIntensity) / 100
-        let wowD = (0.004 + w * 0.035) * Double(params.wowDepth) / 100 * m
+        // Additive wear model — mirrors startWow() live path.
+        let effectiveWow  = min(Double(params.wowDepth) + Double(params.wear), 100) / 100
+        let effectiveWarp = min(Double(params.warpWow)  + Double(params.wear), 100) / 100
+        let wowD  = effectiveWow  * 0.039 * m
         let flutD = (0.002 + w * 0.02) * Double(params.flutter) / 100 * m
-        let warpD = (0.006 + w * 0.05) * Double(params.warpWow) / 100 * m
+        let warpD = effectiveWarp * 0.056 * m
 
         // Build rate curve in 50ms chunks
         let chunkDuration = 0.05
