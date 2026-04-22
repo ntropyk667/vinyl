@@ -198,6 +198,12 @@ struct EffectSectionsView: View {
                 EffectSlider(label: "azimuth error", sub: "channel phase mismatch", info: "Cartridge misalignment delays one channel slightly, causing phase smear and a hollow stereo image.", value: Binding(get: { engine.params.azimuthError }, set: { engine.params.azimuthError=$0; engine.updateVinylParams() }))
                 EffectSlider(label: "room resonance", sub: "turntable coupling", info: "Narrow resonant peak around 180Hz from the turntable plinth vibrating on the shelf.", value: Binding(get: { engine.params.roomResonance }, set: { engine.params.roomResonance=$0; engine.updateVinylParams() }))
             }
+            EffectSection(title: "graphic eq", badge: "12 band", id: "eq", open: $open) {
+                GraphicEQView(engine: engine)
+            }
+            EffectSection(title: "compressor", badge: "dynamics", id: "comp", open: $open) {
+                CompressorView(engine: engine)
+            }
             EffectSection(title: "amplifier", badge: "tube simulation", id: "amp", open: $open) {
                 AmpSubLabel("preamp tube")
                 EffectSlider(label: "tube warmth", sub: "upper bass fullness", info: "Real tubes clip asymmetrically - harder on one phase than the other. This produces even-order harmonics (octaves) which sound musical and warm rather than harsh.", value: Binding(get: { engine.params.saturation }, set: { engine.params.saturation=$0; engine.updateAmpParams() }),
@@ -252,19 +258,32 @@ struct EffectSectionsView: View {
 struct EffectSection<Content: View>: View {
     let title: String; let badge: String; let id: String
     @Binding var open: Set<String>
+    var isEnabled: Binding<Bool>? = nil
     @ViewBuilder let content: Content
     var isOpen: Bool { open.contains(id) }
     var body: some View {
         VStack(spacing: 0) {
-            Button(action: { if isOpen { open.remove(id) } else { open.insert(id) } }) {
-                HStack {
-                    Text(title.uppercased()).font(.system(size: 11, weight: .medium, design: .monospaced)).foregroundColor(Color(hex: "9a9690")).kerning(1.0)
-                    Spacer()
-                    Text(badge).font(.system(size: 10, design: .monospaced)).foregroundColor(Color(hex: "5a5856"))
-                    Image(systemName: isOpen ? "chevron.up" : "chevron.down").font(.system(size: 10)).foregroundColor(Color(hex: "5a5856"))
+            HStack {
+                Text(title.uppercased()).font(.system(size: 11, weight: .medium, design: .monospaced)).foregroundColor(Color(hex: "9a9690")).kerning(1.0)
+                Spacer()
+                if let enabled = isEnabled {
+                    Button(action: { enabled.wrappedValue.toggle() }) {
+                        Text(enabled.wrappedValue ? "on" : "off")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundColor(enabled.wrappedValue ? Color(hex: "c8b89a") : Color(hex: "3a3836"))
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Color(hex: "0e0e0e"))
+                            .cornerRadius(3)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 14).padding(.vertical, 11).background(Color(hex: "161616"))
+                Text(badge).font(.system(size: 10, design: .monospaced)).foregroundColor(Color(hex: "5a5856"))
+                Image(systemName: isOpen ? "chevron.up" : "chevron.down").font(.system(size: 10)).foregroundColor(Color(hex: "5a5856"))
             }
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .background(Color(hex: "161616"))
+            .contentShape(Rectangle())
+            .onTapGesture { if isOpen { open.remove(id) } else { open.insert(id) } }
             if isOpen {
                 VStack(spacing: 8) { content }.padding(10).background(Color(hex: "0e0e0e"))
             }
@@ -333,6 +352,209 @@ struct EffectSlider: View {
             }
         }
         .animation(.easeInOut(duration: 0.15), value: showInfo)
+    }
+}
+
+struct GraphicEQView: View {
+    @ObservedObject var engine: VinylEngine
+    private let faderHeight: CGFloat = 80
+    private let labels = ["32", "64", "125", "250", "500", "1K", "2K", "4K", "6K", "8K", "12K", "16K"]
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Spacer()
+                Button(action: { engine.resetUserEQ() }) {
+                    Text("reset")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(Color(hex: "5a5856"))
+                }
+            }
+            HStack(alignment: .top, spacing: 0) {
+                // dB scale
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("+12").font(.system(size: 8, design: .monospaced)).foregroundColor(Color(hex: "5a5856"))
+                    Spacer()
+                    Text("0").font(.system(size: 8, design: .monospaced)).foregroundColor(Color(hex: "5a5856"))
+                    Spacer()
+                    Text("-12").font(.system(size: 8, design: .monospaced)).foregroundColor(Color(hex: "5a5856"))
+                }
+                .frame(width: 24, height: faderHeight)
+                .padding(.trailing, 6)
+                // 12 faders
+                HStack(spacing: 0) {
+                    ForEach(0..<12, id: \.self) { i in
+                        EQFaderColumn(
+                            gain: $engine.userEQGains[i],
+                            label: labels[i],
+                            faderHeight: faderHeight,
+                            isEnabled: engine.userEQEnabled,
+                            onChange: {
+                                if !engine.userEQEnabled { engine.userEQEnabled = true }
+                                engine.updateUserEQ()
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 2)
+    }
+}
+
+struct EQFaderColumn: View {
+    @Binding var gain: Float
+    let label: String
+    let faderHeight: CGFloat
+    let isEnabled: Bool
+    let onChange: () -> Void
+    private let gainRange: Float = 12.0
+    private var thumbY: CGFloat {
+        CGFloat((gainRange - gain) / (gainRange * 2)) * faderHeight
+    }
+    private var thumbColor: Color {
+        guard isEnabled else { return Color(hex: "2a2826") }
+        return abs(gain) < 0.5 ? Color(hex: "5a5856") : Color(hex: "c8b89a")
+    }
+    var body: some View {
+        VStack(spacing: 4) {
+            ZStack(alignment: .top) {
+                // Invisible base sets ZStack height and full-width hit area
+                Rectangle().frame(height: faderHeight).foregroundColor(.clear)
+                // Track
+                Rectangle()
+                    .frame(width: 1, height: faderHeight)
+                    .foregroundColor(Color(hex: "252220"))
+                // 0 dB tick
+                Rectangle()
+                    .frame(width: 8, height: 0.5)
+                    .foregroundColor(Color(hex: "3a3836"))
+                    .offset(y: faderHeight / 2)
+                // Gain fill — from 0dB line to thumb
+                let zeroY = faderHeight / 2
+                let fillTop = min(thumbY, zeroY)
+                let fillH = abs(thumbY - zeroY)
+                Rectangle()
+                    .frame(width: 2, height: max(0, fillH))
+                    .foregroundColor(isEnabled && abs(gain) > 0.5 ? Color(hex: "c8b89a").opacity(0.45) : Color.clear)
+                    .offset(y: fillTop)
+                // Thumb
+                RoundedRectangle(cornerRadius: 2)
+                    .frame(width: 14, height: 4)
+                    .foregroundColor(thumbColor)
+                    .offset(y: thumbY - 2)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { v in
+                        let clamped = max(0, min(faderHeight, v.location.y))
+                        gain = gainRange * (1.0 - Float(clamped / faderHeight) * 2.0)
+                        onChange()
+                    }
+            )
+            Text(label)
+                .font(.system(size: 7, design: .monospaced))
+                .foregroundColor(Color(hex: "5a5856"))
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// A slider row with a custom range and display function, used by CompressorView.
+/// Mirrors EffectSlider's visual style exactly; only differs in range flexibility.
+struct CompressorSliderRow: View {
+    let label: String
+    let sub: String
+    let info: String
+    @Binding var value: Float
+    let range: ClosedRange<Float>
+    let displayValue: (Float) -> String
+    let isDisabled: Bool
+    let onChange: () -> Void
+    @State private var showInfo = false
+    var body: some View {
+        let labelColor = isDisabled ? Color(hex: "5a5856") : Color(hex: "9a9690")
+        let subColor   = isDisabled ? Color(hex: "3a3836") : Color(hex: "5a5856")
+        let accent     = isDisabled ? Color(hex: "5a5856") : Color(hex: "c8b89a")
+        let valueColor = isDisabled ? Color(hex: "3a3836") : Color(hex: "5a5856")
+        // Proxy binding so every slider write calls onChange() immediately.
+        let proxy = Binding<Float>(get: { value }, set: { value = $0; onChange() })
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(label).font(.system(size: 11, design: .monospaced)).foregroundColor(labelColor)
+                    Text(sub).font(.system(size: 9, design: .monospaced)).foregroundColor(subColor)
+                }.frame(width: 130, alignment: .leading)
+                Slider(value: proxy, in: range).accentColor(accent)
+                Text(displayValue(value))
+                    .font(.system(size: 10, design: .monospaced)).foregroundColor(valueColor)
+                    .frame(width: 44, alignment: .trailing)
+                Button(action: { showInfo.toggle() }) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 12))
+                        .foregroundColor(showInfo ? Color(hex: "c8b89a") : Color(hex: "3a3836"))
+                }
+            }
+            if showInfo {
+                Text(info)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(Color(hex: "9a9690"))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(hex: "0e0e0e"))
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color(hex: "c8b89a").opacity(0.2), lineWidth: 0.5))
+                    .cornerRadius(5)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.15), value: showInfo)
+    }
+}
+
+struct CompressorView: View {
+    @ObservedObject var engine: VinylEngine
+    private var off: Bool { !engine.compressorEnabled }
+    var body: some View {
+        VStack(spacing: 8) {
+            CompressorSliderRow(
+                label: "threshold", sub: "onset level",
+                info: "The dB level above which compression begins. Signal below passes through unchanged; above it gets reduced.",
+                value: $engine.compressorParams.threshold, range: -40...0,
+                displayValue: { "\(Int($0)) dB" },
+                isDisabled: off, onChange: { engine.updateCompressor() })
+            CompressorSliderRow(
+                label: "ratio", sub: "compression amount",
+                info: "How aggressively signal above the threshold is reduced. 2:1 is gentle; 20:1 approaches hard limiting.",
+                value: $engine.compressorParams.ratio, range: 1...20,
+                displayValue: { String(format: "%.0f:1", $0) },
+                isDisabled: off, onChange: { engine.updateCompressor() })
+            CompressorSliderRow(
+                label: "knee", sub: "onset smoothness",
+                info: "Hard knee (0 dB) applies compression abruptly at the threshold. Soft knee applies it gradually over a dB range centered on the threshold.",
+                value: $engine.compressorParams.knee, range: 0...40,
+                displayValue: { "\(Int($0)) dB" },
+                isDisabled: off, onChange: { engine.updateCompressor() })
+            CompressorSliderRow(
+                label: "attack", sub: "response speed",
+                info: "How quickly the compressor engages when signal exceeds threshold. Short attack catches transients; long attack lets them pass through.",
+                value: $engine.compressorParams.attackTime, range: 0.1...200,
+                displayValue: { $0 < 10 ? String(format: "%.1fms", $0) : "\(Int($0))ms" },
+                isDisabled: off, onChange: { engine.updateCompressor() })
+            CompressorSliderRow(
+                label: "release", sub: "recovery speed",
+                info: "How quickly the compressor disengages after signal drops below threshold. Short release can cause pumping; long release gives smoother leveling.",
+                value: $engine.compressorParams.releaseTime, range: 10...2000,
+                displayValue: { $0 >= 1000 ? String(format: "%.1fs", $0/1000) : "\(Int($0))ms" },
+                isDisabled: off, onChange: { engine.updateCompressor() })
+            CompressorSliderRow(
+                label: "makeup gain", sub: "output level",
+                info: "Positive gain applied after compression to restore the level reduced by compression. Use to match the compressed signal to the uncompressed level.",
+                value: $engine.compressorParams.makeupGain, range: -20...20,
+                displayValue: { ($0 >= 0 ? "+" : "") + String(format: "%.1fdB", $0) },
+                isDisabled: off, onChange: { engine.updateCompressor() })
+        }
     }
 }
 

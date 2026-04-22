@@ -12,6 +12,14 @@ class VinylEngine: ObservableObject {
     @Published var params = VinylParameters()
     @Published var currentTrack: SampleTrack?
     @Published var currentPreset: VinylPreset = .electronic
+    // User-facing graphic EQ — independent of vinyl simulation, always starts bypassed.
+    // Not stored in presets; the user sets this as a per-session correction tool.
+    @Published var userEQEnabled = false { didSet { updateUserEQ() } }
+    @Published var userEQGains = [Float](repeating: 0, count: 12)
+    // Compressor — post-EQ dynamics processor, always starts bypassed.
+    // Not stored in presets; the user engages this independently per session.
+    @Published var compressorEnabled = false { didSet { updateCompressor() } }
+    @Published var compressorParams = CompressorParameters()
     @Published var displayTitle: String = "no track loaded"
 
     // Mode: library vs converter (mutually exclusive)
@@ -123,6 +131,14 @@ class VinylEngine: ObservableObject {
     private var riaaEQ: AVAudioUnitEQ!
     private var roomEQ: AVAudioUnitEQ!
     private var masterMixer: AVAudioMixerNode!
+    private var userEQ: AVAudioUnitEQ!
+    // Software compressor: a dedicated mixer node whose volume is driven
+    // dynamically by a tap installed on userEQ's output. Avoids iOS AU
+    // instantiation complexity and gives true variable-ratio compression.
+    private var compGainNode: AVAudioMixerNode!
+    // Current smoothed gain reduction (linear, ≤ 1.0). Written only from the
+    // tap callback; read only to set compGainNode.volume — no lock needed.
+    private var compGainSmoothed: Float = 1.0
     // Incremented on every startPlayback(). Completion callbacks capture the generation
     // at scheduling time and bail if it no longer matches — prevents stale callbacks
     // from previous buffers cascading into handleEnd() and flickering through tracks.
@@ -204,6 +220,8 @@ class VinylEngine: ObservableObject {
         riaaEQ = makeEQ(type: .parametric, freq: 900, bw: 1.0, gain: 0)
         roomEQ = makeEQ(type: .parametric, freq: 180, bw: 0.5, gain: 0)
         masterMixer = AVAudioMixerNode()
+        userEQ = AVAudioUnitEQ(numberOfBands: 12)
+        compGainNode = AVAudioMixerNode()
         satNode = AVAudioUnitDistortion()
         // Use the cubic soft-clipping preset to emulate Class A amplifier
         // behavior. Cubic distortion produces predominantly odd-order harmonics
@@ -220,8 +238,18 @@ class VinylEngine: ObservableObject {
         timePitch = AVAudioUnitTimePitch()
         timePitch.rate = 1.0
         timePitch.pitch = 0
-        let nodes: [AVAudioNode] = [playerNode, timePitch, hpFilter, riaaEQ, tubeWarmthEQ, tubeAirEQ, microEQ, xformerEQ, speakerEQ, satNode, lpFilter, roomEQ, masterMixer, hissPlayer, rumblePlayer, cracklePlayer]
+        let nodes: [AVAudioNode] = [playerNode, timePitch, hpFilter, riaaEQ, tubeWarmthEQ, tubeAirEQ, microEQ, xformerEQ, speakerEQ, satNode, lpFilter, roomEQ, masterMixer, hissPlayer, rumblePlayer, cracklePlayer, userEQ, compGainNode]
         nodes.forEach { engine.attach($0) }
+        // Configure 12-band graphic EQ with ISO center frequencies.
+        // Bandwidth 1.0 (≈1.4 Q) gives a standard graphic EQ overlap between adjacent bands.
+        let eqFreqs: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 6000, 8000, 12000, 16000]
+        for (i, freq) in eqFreqs.enumerated() {
+            userEQ.bands[i].filterType = .parametric
+            userEQ.bands[i].frequency  = freq
+            userEQ.bands[i].bandwidth  = 1.0
+            userEQ.bands[i].gain       = 0
+            userEQ.bands[i].bypass     = false
+        }
         let fmt = engine.mainMixerNode.outputFormat(forBus: 0)
         engine.connect(playerNode, to: timePitch, format: nil)
         engine.connect(timePitch, to: hpFilter, format: nil)
@@ -238,7 +266,9 @@ class VinylEngine: ObservableObject {
         engine.connect(hissPlayer, to: masterMixer, format: fmt)
         engine.connect(rumblePlayer, to: masterMixer, format: fmt)
         engine.connect(cracklePlayer, to: masterMixer, format: fmt)
-        engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
+        engine.connect(masterMixer, to: userEQ, format: nil)
+        engine.connect(userEQ, to: compGainNode, format: nil)
+        engine.connect(compGainNode, to: engine.mainMixerNode, format: nil)
         do { try engine.start() } catch { print("Engine start error: \(error)") }
         // Lock output to 0 at startup — ramped back up on first play to mask pop.
         engine.mainMixerNode.outputVolume = 0
@@ -902,6 +932,130 @@ class VinylEngine: ObservableObject {
         cracklePlayer.volume = active ? Float(effectiveCrackle * Double(m)) * 0.63 * crackleBoost : 0
     }
 
+    func updateUserEQ() {
+        for i in 0..<12 {
+            userEQ.bands[i].gain = userEQEnabled ? userEQGains[i] : 0
+        }
+    }
+
+    func resetUserEQ() {
+        userEQGains = [Float](repeating: 0, count: 12)
+        updateUserEQ()
+    }
+
+    func updateCompressor() {
+        // Remove any existing tap first so we don't stack taps on re-enable.
+        userEQ.removeTap(onBus: 0)
+        let active = compressorEnabled && !isBypassed
+        if active {
+            // Install a read tap on userEQ's output. The tap fires on an
+            // audio render thread every buffer. We measure RMS, compute gain
+            // reduction, smooth it through attack/release IIR filters, and
+            // apply the result to compGainNode.volume.
+            userEQ.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
+                self?.processCompressorTap(buffer)
+            }
+        } else {
+            compGainSmoothed = 1.0
+            compGainNode.volume = 1.0
+        }
+    }
+
+    // Called on the audio render thread from the userEQ tap.
+    private func processCompressorTap(_ buffer: AVAudioPCMBuffer) {
+        // Snapshot published state — benign if torn; worst case is one buffer
+        // of slightly mismatched params, which is inaudible.
+        let enabled = compressorEnabled
+        let bypassed = isBypassed
+        guard enabled && !bypassed else {
+            compGainSmoothed = 1.0
+            compGainNode.volume = 1.0
+            return
+        }
+        let p = compressorParams
+
+        // 1. RMS level across all channels
+        guard let data = buffer.floatChannelData else { return }
+        let ch = Int(buffer.format.channelCount)
+        let n  = Int(buffer.frameLength)
+        guard ch > 0, n > 0 else { return }
+        var sum: Float = 0
+        for c in 0..<ch { for i in 0..<n { let s = data[c][i]; sum += s * s } }
+        let rms = sqrt(sum / Float(ch * n))
+        guard rms > 1e-10 else { return }   // silence — hold last gain
+
+        // 2. Gain computer: standard soft-knee compressor formula
+        let targetGain = compressorComputeGain(rmsLinear: rms, params: p)
+
+        // 3. Attack / release first-order IIR smoothing.
+        // Buffer duration sets the minimum step size — any attack/release time
+        // shorter than one buffer resolves in a single step (coeff → 0).
+        let bufDur   = Double(n) / buffer.format.sampleRate
+        let timeConst = targetGain < compGainSmoothed
+            ? max(0.001, Double(p.attackTime)  / 1000.0)   // compressor engaging
+            : max(0.001, Double(p.releaseTime) / 1000.0)   // compressor releasing
+        let coeff = Float(exp(-bufDur / timeConst))
+        compGainSmoothed = coeff * compGainSmoothed + (1.0 - coeff) * targetGain
+
+        // 4. Apply makeup gain and update the node volume.
+        let makeup = pow(10.0 as Float, p.makeupGain / 20.0)
+        compGainNode.volume = max(0.0, compGainSmoothed * makeup)
+    }
+
+    // Standard feed-forward gain computer with soft knee (Giannoulis et al. 2012).
+    // Returns a linear gain multiplier ≤ 1.0 (attenuation only — no boost here;
+    // makeup gain is applied separately so the compressor never clips internally).
+    private func compressorComputeGain(rmsLinear: Float, params p: CompressorParameters) -> Float {
+        let rmsDB    = 20.0 * log10(rmsLinear)
+        let thresh   = p.threshold
+        let ratio    = max(1.0, p.ratio)
+        let knee     = max(0.0, p.knee)
+        let halfKnee = knee / 2.0
+        let dbAbove  = rmsDB - thresh
+
+        // Gain reduction in dB (negative = attenuation):
+        let gainDB: Float
+        if knee > 0.0 && dbAbove > -halfKnee && dbAbove <= halfKnee {
+            // Soft-knee zone: quadratic blend between no-compression and full ratio.
+            let x = dbAbove + halfKnee
+            gainDB = (1.0 / ratio - 1.0) * x * x / (2.0 * knee)
+        } else if dbAbove > halfKnee {
+            // Above knee: full ratio compression.
+            gainDB = (1.0 / ratio - 1.0) * dbAbove
+        } else {
+            gainDB = 0.0   // below threshold
+        }
+        return pow(10.0, gainDB / 20.0)   // ≤ 1.0
+    }
+
+    // Applies the same compressor math in-place on a buffer for offline render.
+    // `gainState` carries the smoothed gain across consecutive render chunks.
+    private func applyCompressorInPlace(_ buffer: AVAudioPCMBuffer, gainState: inout Float) {
+        guard compressorEnabled && !isBypassed else { return }
+        guard let data = buffer.floatChannelData else { return }
+        let ch = Int(buffer.format.channelCount)
+        let n  = Int(buffer.frameLength)
+        guard ch > 0, n > 0 else { return }
+        let p = compressorParams
+
+        var sum: Float = 0
+        for c in 0..<ch { for i in 0..<n { let s = data[c][i]; sum += s * s } }
+        let rms = sqrt(sum / Float(ch * n))
+        guard rms > 1e-10 else { return }
+
+        let targetGain = compressorComputeGain(rmsLinear: rms, params: p)
+        let bufDur    = Double(n) / buffer.format.sampleRate
+        let timeConst = targetGain < gainState
+            ? max(0.001, Double(p.attackTime)  / 1000.0)
+            : max(0.001, Double(p.releaseTime) / 1000.0)
+        let coeff  = Float(exp(-bufDur / timeConst))
+        gainState  = coeff * gainState + (1.0 - coeff) * targetGain
+        let makeup = pow(10.0 as Float, p.makeupGain / 20.0)
+        let final  = max(0.0, gainState * makeup)
+
+        for c in 0..<ch { for i in 0..<n { data[c][i] *= final } }
+    }
+
     private var monoModeBeforeBypass = false
 
     func toggleBypass() {
@@ -917,6 +1071,7 @@ class VinylEngine: ObservableObject {
         }
         updateVinylParams()
         updateAmpParams()
+        updateCompressor()
         scheduleNoiseUpdate()
         if isPlaying { seek(to: currentTime) }
     }
@@ -1495,8 +1650,19 @@ class VinylEngine: ObservableObject {
         let offRumble = AVAudioPlayerNode()
         let offCrackle = AVAudioPlayerNode()
 
-        let nodes: [AVAudioNode] = [offPlayer, offHP, offRIAA, offTubeWarmth, offTubeAir, offMicro, offXformer, offSpeaker, offSat, offLP, offRoom, offMixer, offHiss, offRumble, offCrackle]
+        let offUserEQ = AVAudioUnitEQ(numberOfBands: 12)
+        // Compressor is applied as an in-place DSP pass on each rendered chunk
+        // (see applyCompressorInPlace) — no separate AU node needed offline.
+        let nodes: [AVAudioNode] = [offPlayer, offHP, offRIAA, offTubeWarmth, offTubeAir, offMicro, offXformer, offSpeaker, offSat, offLP, offRoom, offMixer, offHiss, offRumble, offCrackle, offUserEQ]
         nodes.forEach { offEngine.attach($0) }
+        let offEqFreqs: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 6000, 8000, 12000, 16000]
+        for (i, freq) in offEqFreqs.enumerated() {
+            offUserEQ.bands[i].filterType = .parametric
+            offUserEQ.bands[i].frequency  = freq
+            offUserEQ.bands[i].bandwidth  = 1.0
+            offUserEQ.bands[i].gain       = userEQEnabled ? userEQGains[i] : 0
+            offUserEQ.bands[i].bypass     = false
+        }
 
         offEngine.connect(offPlayer, to: offHP, format: renderFmt)
         offEngine.connect(offHP, to: offRIAA, format: renderFmt)
@@ -1512,7 +1678,8 @@ class VinylEngine: ObservableObject {
         offEngine.connect(offHiss, to: offMixer, format: renderFmt)
         offEngine.connect(offRumble, to: offMixer, format: renderFmt)
         offEngine.connect(offCrackle, to: offMixer, format: renderFmt)
-        offEngine.connect(offMixer, to: offEngine.mainMixerNode, format: renderFmt)
+        offEngine.connect(offMixer, to: offUserEQ, format: renderFmt)
+        offEngine.connect(offUserEQ, to: offEngine.mainMixerNode, format: renderFmt)
 
         // Apply current EQ params to offline chain
         let m = params.masterIntensity / 100
@@ -1580,10 +1747,14 @@ class VinylEngine: ObservableObject {
         }
 
         var framesRendered: AVAudioFrameCount = 0
+        var offCompGainState: Float = 1.0   // compressor gain state carried across chunks
         while framesRendered < outputFrames {
             let status = try offEngine.renderOffline(min(4096, outputFrames - framesRendered), to: renderBuf)
             switch status {
             case .success:
+                // Apply software compressor in-place before writing — same
+                // algorithm as the live tap, using a persistent gain state.
+                applyCompressorInPlace(renderBuf, gainState: &offCompGainState)
                 try outputFile.write(from: renderBuf)
                 framesRendered += renderBuf.frameLength
                 let prog = Double(framesRendered) / Double(outputFrames)

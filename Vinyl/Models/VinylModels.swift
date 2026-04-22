@@ -44,6 +44,26 @@ struct VinylParameters {
     var classADrive: Float = 40
 }
 
+struct CompressorParameters {
+    /// Onset level for compression in dB. Signal above this threshold is compressed.
+    /// Range: -40 to 0 dB (AVAudioUnitDynamicsProcessor accepts -40 to +20).
+    var threshold: Float = -20.0
+    /// Compression ratio. 2:1 is gentle; 20:1 approaches hard limiting.
+    /// Maps to AVAudioUnitDynamicsProcessor.expansionRatio.
+    var ratio: Float = 2.0
+    /// Soft-knee width in dB. 0 = hard knee (abrupt onset); higher = gradual onset.
+    /// Maps to AVAudioUnitDynamicsProcessor.headRoom.
+    var knee: Float = 5.0
+    /// Attack time in milliseconds — how quickly compressor engages above threshold.
+    /// AVAudioUnitDynamicsProcessor range: 0.0001–0.2 s → UI 0.1–200 ms.
+    var attackTime: Float = 10.0
+    /// Release time in milliseconds — how quickly compressor disengages after signal drops.
+    /// AVAudioUnitDynamicsProcessor range: 0.01–3.0 s → UI 10–2000 ms.
+    var releaseTime: Float = 100.0
+    /// Output makeup gain in dB to compensate for level lost during compression.
+    var makeupGain: Float = 0.0
+}
+
 struct VinylPreset: Identifiable {
     let id: String
     let name: String

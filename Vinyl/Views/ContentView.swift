@@ -166,29 +166,21 @@ struct ContentView: View {
     // Compact vertical bypass + mono for the narrow left column in portrait
     private var portraitBypass: some View {
         VStack(spacing: 5) {
-            Button(action: { engine.toggleBypass() }) {
-                Text(engine.isBypassed ? "enable effects" : "bypass effects")
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(Color(hex: "9a9690"))
-                    .padding(.horizontal, 10).padding(.vertical, 7)
-                    .frame(maxWidth: .infinity)
-                    .background(Color(hex: "161616"))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.14), lineWidth: 0.5))
-                    .cornerRadius(6)
-            }
-            HStack(spacing: 5) {
-                Circle().fill(engine.isBypassed ? Color(hex: "5a9a78") : Color(hex: "5a9a78")).frame(width: 6, height: 6)
-                Text(engine.isBypassed ? "bypassed" : "vinyl on")
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(Color(hex: "9a9690"))
-            }
-            .padding(.horizontal, 8).padding(.vertical, 4)
-            .frame(maxWidth: .infinity)
-            .background(Color(hex: "161616"))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08), lineWidth: 0.5))
-            .cornerRadius(6)
+            BypassButton(engine: engine)
             StereoMonoToggle(engine: engine)
+                .disabled(engine.isBypassed)
+                .opacity(engine.isBypassed ? 0.35 : 1.0)
+            HStack(spacing: 4) {
+                GraphicEQToggle(engine: engine)
+                    .disabled(engine.isBypassed)
+                    .opacity(engine.isBypassed ? 0.35 : 1.0)
+                CompressorToggle(engine: engine)
+                    .disabled(engine.isBypassed)
+                    .opacity(engine.isBypassed ? 0.35 : 1.0)
+            }
             NeedleDropButton(engine: engine)
+                .disabled(engine.isBypassed)
+                .opacity(engine.isBypassed ? 0.35 : 1.0)
         }
     }
 
@@ -200,7 +192,19 @@ struct ContentView: View {
                 TubeControlsView(engine: engine)
                 BypassButton(engine: engine)
                 StereoMonoToggle(engine: engine)
+                    .disabled(engine.isBypassed)
+                    .opacity(engine.isBypassed ? 0.35 : 1.0)
+                HStack(spacing: 4) {
+                    GraphicEQToggle(engine: engine)
+                        .disabled(engine.isBypassed)
+                        .opacity(engine.isBypassed ? 0.35 : 1.0)
+                    CompressorToggle(engine: engine)
+                        .disabled(engine.isBypassed)
+                        .opacity(engine.isBypassed ? 0.35 : 1.0)
+                }
                 NeedleDropButton(engine: engine)
+                    .disabled(engine.isBypassed)
+                    .opacity(engine.isBypassed ? 0.35 : 1.0)
             }
             .frame(width: 200)
             .disabled(engine.isPreviewing)
@@ -266,23 +270,21 @@ struct HeaderView: View {
 struct BypassButton: View {
     @ObservedObject var engine: VinylEngine
     var body: some View {
-        HStack(spacing: 8) {
-            Button(action: { engine.toggleBypass() }) {
-                Text(engine.isBypassed ? "enable effects" : "bypass effects")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(Color(hex: "9a9690"))
-                    .padding(.horizontal, 14).padding(.vertical, 7)
-                    .background(Color(hex: "161616"))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.14), lineWidth: 0.5))
-                    .cornerRadius(6)
-            }
+        Button(action: { engine.toggleBypass() }) {
             HStack(spacing: 6) {
-                Circle().fill(Color(hex: "5a9a78")).frame(width: 6, height: 6)
-                Text(engine.isBypassed ? "bypassed" : "vinyl on").font(.system(size: 11, design: .monospaced)).foregroundColor(Color(hex: "9a9690"))
+                Circle()
+                    .fill(engine.isBypassed ? Color(hex: "c84a3a") : Color(hex: "5a5856"))
+                    .frame(width: 6, height: 6)
+                Text(engine.isBypassed ? "bypassed" : "bypass")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(engine.isBypassed ? Color(hex: "c8b89a") : Color(hex: "9a9690"))
             }
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(Color(hex: "161616"))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08), lineWidth: 0.5))
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .background(engine.isBypassed ? Color(hex: "1e1a14") : Color(hex: "161616"))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(
+                engine.isBypassed ? Color(hex: "c8b89a").opacity(0.4) : Color.white.opacity(0.08),
+                lineWidth: 0.5))
             .cornerRadius(6)
         }
     }
@@ -311,21 +313,67 @@ struct StereoMonoToggle: View {
     }
 }
 
+struct GraphicEQToggle: View {
+    @ObservedObject var engine: VinylEngine
+    var body: some View {
+        Button(action: { engine.userEQEnabled.toggle() }) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(engine.userEQEnabled ? Color(hex: "4a9a5a") : Color(hex: "5a5856"))
+                    .frame(width: 6, height: 6)
+                Text("EQ")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(engine.userEQEnabled ? Color(hex: "c8b89a") : Color(hex: "9a9690"))
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 6)
+            .background(engine.userEQEnabled ? Color(hex: "1e1a14") : Color(hex: "161616"))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(
+                engine.userEQEnabled ? Color(hex: "c8b89a").opacity(0.4) : Color.white.opacity(0.08),
+                lineWidth: 0.5))
+            .cornerRadius(6)
+        }
+    }
+}
+
+struct CompressorToggle: View {
+    @ObservedObject var engine: VinylEngine
+    var body: some View {
+        Button(action: { engine.compressorEnabled.toggle() }) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(engine.compressorEnabled ? Color(hex: "4a9a5a") : Color(hex: "5a5856"))
+                    .frame(width: 6, height: 6)
+                Text("COMP")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(engine.compressorEnabled ? Color(hex: "c8b89a") : Color(hex: "9a9690"))
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 6)
+            .background(engine.compressorEnabled ? Color(hex: "1e1a14") : Color(hex: "161616"))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(
+                engine.compressorEnabled ? Color(hex: "c8b89a").opacity(0.4) : Color.white.opacity(0.08),
+                lineWidth: 0.5))
+            .cornerRadius(6)
+        }
+    }
+}
+
 struct NeedleDropButton: View {
     @ObservedObject var engine: VinylEngine
     var body: some View {
         Button(action: { engine.cycleNeedleDrop() }) {
             HStack(spacing: 6) {
                 Circle()
-                    .fill(engine.needleDropMode != .bypass ? Color(hex: "c8b89a") : Color(hex: "5a5856"))
+                    .fill(engine.needleDropMode != .bypass ? Color(hex: "4a9a5a") : Color(hex: "5a5856"))
                     .frame(width: 6, height: 6)
                 Text("needle drop")
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(engine.needleDropMode != .bypass ? Color(hex: "c8b89a") : Color(hex: "5a5856"))
+                    .foregroundColor(engine.needleDropMode != .bypass ? Color(hex: "c8b89a") : Color(hex: "9a9690"))
                 Spacer()
                 Text(engine.needleDropMode.label)
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundColor(engine.needleDropMode != .bypass ? Color(hex: "c8b89a") : Color(hex: "5a5856"))
+                    .foregroundColor(engine.needleDropMode != .bypass ? Color(hex: "c8b89a") : Color(hex: "9a9690"))
             }
             .padding(.horizontal, 10).padding(.vertical, 6)
             .frame(maxWidth: .infinity)
