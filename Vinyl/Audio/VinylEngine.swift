@@ -155,6 +155,10 @@ class VinylEngine: ObservableObject {
     private var hissPlayer = AVAudioPlayerNode()
     private var rumblePlayer = AVAudioPlayerNode()
     private var cracklePlayer = AVAudioPlayerNode()
+    // "pressed noise" — a constant mid-frequency manufacturing-haze layer.
+    private var pressedPlayer = AVAudioPlayerNode()
+    // "tracking weight" — groove-distortion insert in the music chain.
+    private var trackNode: AVAudioUnitDistortion!
 
     // Playback speed
     static let speedOptions: [Float] = [0.5, 0.9, 1.0, 1.2, 1.5, 1.7, 2.0, 2.5, 3.0, 4.0]
@@ -230,6 +234,14 @@ class VinylEngine: ObservableObject {
         // AVAudioUnitDistortion otherwise uses.
         satNode.loadFactoryPreset(.multiDistortedCubed)
         satNode.wetDryMix = 0
+        // "tracking weight" groove distortion. Reuses the same cubic soft-clip
+        // as the amp's class-A drive; its wetDryMix is driven by trackingWeight
+        // in updateVinylParams() (0% at the neutral 50 setting, rising as the
+        // slider goes heavier). Inserted just before masterMixer so it colors the
+        // music but not the surface-noise layers.
+        trackNode = AVAudioUnitDistortion()
+        trackNode.loadFactoryPreset(.multiDistortedCubed)
+        trackNode.wetDryMix = 0
         tubeWarmthEQ = makeEQ(type: .parametric, freq: 200, bw: 1.0, gain: 0)
         tubeAirEQ = makeEQ(type: .highShelf, freq: 10000, gain: 0)
         microEQ = makeEQ(type: .parametric, freq: 220, bw: 0.2, gain: 0)
@@ -238,7 +250,7 @@ class VinylEngine: ObservableObject {
         timePitch = AVAudioUnitTimePitch()
         timePitch.rate = 1.0
         timePitch.pitch = 0
-        let nodes: [AVAudioNode] = [playerNode, timePitch, hpFilter, riaaEQ, tubeWarmthEQ, tubeAirEQ, microEQ, xformerEQ, speakerEQ, satNode, lpFilter, roomEQ, masterMixer, hissPlayer, rumblePlayer, cracklePlayer, userEQ, compGainNode]
+        let nodes: [AVAudioNode] = [playerNode, timePitch, hpFilter, riaaEQ, tubeWarmthEQ, tubeAirEQ, microEQ, xformerEQ, speakerEQ, satNode, lpFilter, roomEQ, trackNode, masterMixer, hissPlayer, rumblePlayer, cracklePlayer, pressedPlayer, userEQ, compGainNode]
         nodes.forEach { engine.attach($0) }
         // Configure 12-band graphic EQ with ISO center frequencies.
         // Bandwidth 1.0 (≈1.4 Q) gives a standard graphic EQ overlap between adjacent bands.
@@ -262,10 +274,12 @@ class VinylEngine: ObservableObject {
         engine.connect(speakerEQ, to: satNode, format: nil)
         engine.connect(satNode, to: lpFilter, format: nil)
         engine.connect(lpFilter, to: roomEQ, format: nil)
-        engine.connect(roomEQ, to: masterMixer, format: nil)
+        engine.connect(roomEQ, to: trackNode, format: nil)
+        engine.connect(trackNode, to: masterMixer, format: nil)
         engine.connect(hissPlayer, to: masterMixer, format: fmt)
         engine.connect(rumblePlayer, to: masterMixer, format: fmt)
         engine.connect(cracklePlayer, to: masterMixer, format: fmt)
+        engine.connect(pressedPlayer, to: masterMixer, format: fmt)
         engine.connect(masterMixer, to: userEQ, format: nil)
         engine.connect(userEQ, to: compGainNode, format: nil)
         engine.connect(compGainNode, to: engine.mainMixerNode, format: nil)
@@ -307,6 +321,7 @@ class VinylEngine: ObservableObject {
         if let b = makePink(fmt, 3.0, 1.0) { hissPlayer.scheduleBuffer(b, at: nil, options: .loops) }
         if let b = makeRumble(fmt, 2.0, 1.0) { rumblePlayer.scheduleBuffer(b, at: nil, options: .loops) }
         if let b = makeCrackle(fmt, 2.0, 1.0) { cracklePlayer.scheduleBuffer(b, at: nil, options: .loops) }
+        if let b = makeHaze(fmt, 3.0, 1.0) { pressedPlayer.scheduleBuffer(b, at: nil, options: .loops) }
     }
 
     private func makePink(_ fmt: AVAudioFormat, _ dur: Double, _ gain: Float) -> AVAudioPCMBuffer? {
@@ -340,6 +355,26 @@ class VinylEngine: ObservableObject {
             for i in 0..<Int(n) {
                 let t = Double(i) / fmt.sampleRate
                 d[i] = Float((sin(2 * Double.pi * 26 * t) + sin(2 * Double.pi * 38 * t)) * 0.5) * gain
+            }
+        }
+        return buf
+    }
+
+    /// Mid-frequency "manufacturing haze" for the pressed-noise layer. Band-
+    /// limited noise (a soft one-pole low-pass minus a slow high-pass) so it sits
+    /// in the mids — distinct from the bright pink hiss and the deep rumble sines.
+    private func makeHaze(_ fmt: AVAudioFormat, _ dur: Double, _ gain: Float) -> AVAudioPCMBuffer? {
+        let n = AVAudioFrameCount(fmt.sampleRate * dur)
+        guard let buf = AVAudioPCMBuffer(pcmFormat: fmt, frameCapacity: n) else { return nil }
+        buf.frameLength = n
+        for ch in 0..<Int(fmt.channelCount) {
+            guard let d = buf.floatChannelData?[ch] else { continue }
+            var lp: Float = 0; var hp: Float = 0
+            for i in 0..<Int(n) {
+                let w = Float.random(in: -1...1)
+                lp += 0.15 * (w - lp)     // one-pole low-pass: tame the harsh top end
+                hp += 0.004 * (lp - hp)   // slow follower we subtract = high-pass
+                d[i] = (lp - hp) * gain
             }
         }
         return buf
@@ -533,6 +568,7 @@ class VinylEngine: ObservableObject {
         if !hissPlayer.isPlaying { hissPlayer.play() }
         if !rumblePlayer.isPlaying { rumblePlayer.play() }
         if !cracklePlayer.isPlaying { cracklePlayer.play() }
+        if !pressedPlayer.isPlaying { pressedPlayer.play() }
         // If a needle drop is active and we're starting from the beginning, suppress hiss
         // until the needle peak timestamp, then fade in over 100ms. This matches real vinyl
         // where surface noise only begins once the stylus contacts the groove.
@@ -614,6 +650,7 @@ class VinylEngine: ObservableObject {
         hissPlayer.pause()
         rumblePlayer.pause()
         cracklePlayer.pause()
+        pressedPlayer.pause()
         isPlaying = false
         progressTimer?.invalidate(); progressTimer = nil
         driftTimer?.invalidate(); driftTimer = nil
@@ -872,6 +909,7 @@ class VinylEngine: ObservableObject {
             // so the bypass state stays consistent.
             roomEQ.bands[0].gain = 0
             riaaEQ.bands[0].gain = 0
+            trackNode.wetDryMix = 0
             return
         }
         let m = params.masterIntensity / 100
@@ -888,6 +926,11 @@ class VinylEngine: ObservableObject {
         // bypass guard above. Class A drive lives in updateAmpParams() now.
         riaaEQ.bands[0].gain = effectiveRiaaVariance / 100 * m * 6 - 3
         roomEQ.bands[0].gain = params.roomResonance / 100 * m * 3
+        // "tracking weight" groove distortion. 50 is the neutral setting (0% wet
+        // = transparent), so existing presets at 50 are unaffected; heavier
+        // tracking (>50) adds increasing cubic distortion. The light/skipping
+        // side (<50) is intentionally not modeled. Tunable via the 25 cap.
+        trackNode.wetDryMix = Float(max(0, (Double(params.trackingWeight) - 50) / 50) * Double(m) * 25)
     }
 
     func updateAmpParams() {
@@ -930,12 +973,17 @@ class VinylEngine: ObservableObject {
             // offline converter (performOfflineRender).
             hissPlayer.volume = active ? Float(Double(params.hiss) / 100 * Double(m)) * 0.35 : 0
         }
-        rumblePlayer.volume  = active ? Float(effectiveRumble  * Double(m)) * 0.36 : 0
+        rumblePlayer.volume  = active ? Float(effectiveRumble  * Double(m)) * 0.72 : 0   // gain doubled by ear (was 0.36); note phone speakers barely reproduce ~30Hz
         // Multiplied by crackleBoost so the "just dropped" ramp can temporarily
         // elevate crackle above the preset's steady-state level — see
         // startCrackleRamp(). When no ramp is active, crackleBoost == 1.0 and
         // this term is a no-op, preserving the previous behavior exactly.
         cracklePlayer.volume = active ? Float(effectiveCrackle * Double(m)) * 0.63 * crackleBoost : 0
+        // Pressed noise — constant mid-frequency manufacturing haze, driven by its
+        // own slider (not affected by wear: it's baked in at pressing time).
+        // makeHaze is band-limited / lower-RMS than pink, so it needs a higher
+        // gain factor than hiss to reach a comparable audible level.
+        pressedPlayer.volume = active ? Float(Double(params.pressedNoise) / 100 * Double(m)) * 1.2 : 0
     }
 
     func updateUserEQ() {
@@ -1655,11 +1703,15 @@ class VinylEngine: ObservableObject {
         let offHiss = AVAudioPlayerNode()
         let offRumble = AVAudioPlayerNode()
         let offCrackle = AVAudioPlayerNode()
+        let offPressed = AVAudioPlayerNode()
+        let offTrack = AVAudioUnitDistortion()
+        offTrack.loadFactoryPreset(.multiDistortedCubed)
+        offTrack.wetDryMix = 0
 
         let offUserEQ = AVAudioUnitEQ(numberOfBands: 12)
         // Compressor is applied as an in-place DSP pass on each rendered chunk
         // (see applyCompressorInPlace) — no separate AU node needed offline.
-        let nodes: [AVAudioNode] = [offPlayer, offHP, offRIAA, offTubeWarmth, offTubeAir, offMicro, offXformer, offSpeaker, offSat, offLP, offRoom, offMixer, offHiss, offRumble, offCrackle, offUserEQ]
+        let nodes: [AVAudioNode] = [offPlayer, offHP, offRIAA, offTubeWarmth, offTubeAir, offMicro, offXformer, offSpeaker, offSat, offLP, offRoom, offTrack, offMixer, offHiss, offRumble, offCrackle, offPressed, offUserEQ]
         nodes.forEach { offEngine.attach($0) }
         let offEqFreqs: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 6000, 8000, 12000, 16000]
         for (i, freq) in offEqFreqs.enumerated() {
@@ -1680,10 +1732,12 @@ class VinylEngine: ObservableObject {
         offEngine.connect(offSpeaker, to: offSat, format: renderFmt)
         offEngine.connect(offSat, to: offLP, format: renderFmt)
         offEngine.connect(offLP, to: offRoom, format: renderFmt)
-        offEngine.connect(offRoom, to: offMixer, format: renderFmt)
+        offEngine.connect(offRoom, to: offTrack, format: renderFmt)
+        offEngine.connect(offTrack, to: offMixer, format: renderFmt)
         offEngine.connect(offHiss, to: offMixer, format: renderFmt)
         offEngine.connect(offRumble, to: offMixer, format: renderFmt)
         offEngine.connect(offCrackle, to: offMixer, format: renderFmt)
+        offEngine.connect(offPressed, to: offMixer, format: renderFmt)
         offEngine.connect(offMixer, to: offUserEQ, format: renderFmt)
         offEngine.connect(offUserEQ, to: offEngine.mainMixerNode, format: renderFmt)
 
@@ -1706,6 +1760,7 @@ class VinylEngine: ObservableObject {
             offMicro.bands[0].gain = pa ? params.roomResonance / 100 * m * 0.6 : 0
             offXformer.bands[0].gain = pw ? params.rumble / 100 * m * 0.6 : 0
             offSpeaker.bands[0].gain = pw ? -(params.roomResonance / 100 * m * 0.5) : 0
+            offTrack.wetDryMix = Float(max(0, (Double(params.trackingWeight) - 50) / 50) * Double(m) * 25)   // match live tracking-weight distortion
         }
 
         // Noise volumes — additive wear model mirrors updateNoiseParams() live path.
@@ -1713,8 +1768,9 @@ class VinylEngine: ObservableObject {
         let offEffRumble  = Double(min(params.rumble  + params.wear, Float(100))) / 100
         let offEffCrackle = Double(min(params.crackle + params.wear, Float(100))) / 100
         offHiss.volume    = active ? Float(Double(params.hiss) / 100 * Double(m)) * 0.35 : 0   // match live hiss gain (updateNoiseParams)
-        offRumble.volume  = active ? Float(offEffRumble  * Double(m)) * 0.36 : 0
+        offRumble.volume  = active ? Float(offEffRumble  * Double(m)) * 0.72 : 0   // match live rumble gain
         offCrackle.volume = active ? Float(offEffCrackle * Double(m)) * 0.63 : 0
+        offPressed.volume = active ? Float(Double(params.pressedNoise) / 100 * Double(m)) * 1.2 : 0   // match live pressed-noise gain
 
         // Enable offline rendering
         try offEngine.enableManualRenderingMode(.offline, format: renderFmt, maximumFrameCount: 4096)
@@ -1731,7 +1787,8 @@ class VinylEngine: ObservableObject {
         let t = Double(params.crackle) / 100.0
         let popProb = 0.000001 * pow(2000.0, t)
         if let cb = makeCrackle(renderFmt, min(dur, 3.0), 1.0, popProb: popProb) { offCrackle.scheduleBuffer(cb, at: nil, options: .loops) }
-        offHiss.play(); offRumble.play(); offCrackle.play()
+        if let pb = makeHaze(renderFmt, min(dur, 5.0), 1.0) { offPressed.scheduleBuffer(pb, at: nil, options: .loops) }
+        offHiss.play(); offRumble.play(); offCrackle.play(); offPressed.play()
 
         // Render in chunks, writing directly to output file
         let outputFrames = prebaked.frameLength
