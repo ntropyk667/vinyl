@@ -880,7 +880,9 @@ class VinylEngine: ObservableObject {
         // linear effect independent of where the individual sliders are set.
         let effectiveHfRolloff    = min(params.hfRolloff    + params.wear, 100)
         let effectiveRiaaVariance = min(params.riaaVariance + params.wear, 100)
-        let cutoff = max(600.0, 18000.0 - Double(effectiveHfRolloff) / 100 * Double(m) * 24000)
+        // hf rolloff strength doubled (24000 -> 48000) by ear: the treble now
+        // rolls off about twice as far for a given slider position.
+        let cutoff = max(600.0, 18000.0 - Double(effectiveHfRolloff) / 100 * Double(m) * 48000)
         lpFilter.bands[0].frequency = Float(cutoff)
         // satNode.wetDryMix intentionally not set here — see note in the
         // bypass guard above. Class A drive lives in updateAmpParams() now.
@@ -1691,7 +1693,9 @@ class VinylEngine: ObservableObject {
             // Additive wear model — mirrors updateVinylParams() live path.
             let effectiveHfRolloff    = min(params.hfRolloff    + params.wear, 100)
             let effectiveRiaaVariance = min(params.riaaVariance + params.wear, 100)
-            let cutoff = max(600.0, 18000.0 - Double(effectiveHfRolloff) / 100 * Double(m) * 24000)
+            // hf rolloff strength doubled (24000 -> 48000) by ear: the treble now
+        // rolls off about twice as far for a given slider position.
+        let cutoff = max(600.0, 18000.0 - Double(effectiveHfRolloff) / 100 * Double(m) * 48000)
             offLP.bands[0].frequency = Float(cutoff)
             offRIAA.bands[0].gain = effectiveRiaaVariance / 100 * m * 6 - 3
             offRoom.bands[0].gain = params.roomResonance / 100 * m * 3
