@@ -49,8 +49,11 @@ struct ContentView: View {
             // the default track. Guard on `currentTrack == nil` so we only
             // seed the default sample on a genuine cold start.
             guard engine.currentTrack == nil else { return }
-            if let sagan = SampleTrack.library.first(where: { $0.id == "sagan" }) {
-                engine.loadTrack(sagan)
+            // Seed the first library track on cold start. (Was the "sagan"
+            // podcast clip, which was removed for being copyrighted.) Using
+            // `.first` keeps this resilient if the library lineup changes.
+            if let defaultTrack = SampleTrack.library.first {
+                engine.loadTrack(defaultTrack)
             }
         }
     }

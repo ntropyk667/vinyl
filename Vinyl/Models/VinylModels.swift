@@ -101,16 +101,20 @@ struct SampleTrack: Identifiable, Equatable {
 
 extension SampleTrack {
     static let library: [SampleTrack] = [
+        // Every track below is cleared for App Store release:
+        //   • Music  — CC0 (public domain) by HoliznaCC0, "use however you want, no credit needed"
+        //   • Faraday — LibriVox recording, Public Domain Mark 1.0 (the lecture text is long out of copyright)
+        //   • NASA   — Juno "Waves" instrument data sonified by NASA; NASA media is not copyrighted
+        // No NonCommercial-licensed or copyrighted material is bundled.
         SampleTrack(id:"france", title:"One Night In France", artist:"HoliznaCC0", genre:"lo-fi / nostalgic", filename:"one_night_in_france", defaultPresetID:"electronic"),
-        SampleTrack(id:"easiness", title:"Easiness", artist:"Dee Yan-Key", genre:"jazz / swing", filename:"easiness", defaultPresetID:"jazz"),
-        SampleTrack(id:"neon", title:"A Neon Flesh", artist:"Kai Engel", genre:"ambient piano", filename:"a_neon_flesh", defaultPresetID:"fatigue"),
-        SampleTrack(id:"srv", title:"not SRV", artist:"unknown", genre:"blues / guitar", filename:"not_srv", defaultPresetID:"needledrop"),
-        SampleTrack(id:"keller", title:"Jim Keller: Moore's Law", artist:"Lex Fridman", genre:"podcast", filename:"lex_fridman_jim_keller_2019", defaultPresetID:"podcast"),
-        SampleTrack(id:"sagan", title:"Pale Blue Dot", artist:"Carl Sagan", genre:"podcast", filename:"Carl Sagans - Pale Blue Dot", defaultPresetID:"podcast"),
-        // Lossless (.flac) sample. VinylEngine.loadTrack was updated to include
-        // .flac in its fallback-extension chain, so this file loads like any
-        // other sample. Default preset "needle drop" suits the 1961 country-
-        // ballad vibe — physical-record feel, stylus mechanics.
-        SampleTrack(id:"bigbadjohn", title:"Big Bad John", artist:"Geoff Castellucci", genre:"country ballad", filename:"big_bad_john", defaultPresetID:"needledrop"),
+        SampleTrack(id:"coffee", title:"Morning Coffee", artist:"HoliznaCC0", genre:"lo-fi / warm", filename:"morning_coffee", defaultPresetID:"fatigue"),
+        SampleTrack(id:"vintage", title:"Vintage", artist:"HoliznaCC0", genre:"lo-fi / crackly", filename:"vintage", defaultPresetID:"fatigue"),
+        SampleTrack(id:"autumn", title:"Autumn", artist:"HoliznaCC0", genre:"lo-fi / mellow", filename:"autumn", defaultPresetID:"fatigue"),
+        SampleTrack(id:"jazz1", title:"Busted Guitar Jazz I", artist:"HoliznaCC0", genre:"jazz / guitar", filename:"busted_jazz_1", defaultPresetID:"jazz"),
+        SampleTrack(id:"jazz3", title:"Busted Guitar Jazz III", artist:"HoliznaCC0", genre:"jazz / guitar", filename:"busted_jazz_3", defaultPresetID:"jazz"),
+        // Spoken word — a classic science lecture, read aloud (public domain).
+        SampleTrack(id:"faraday", title:"The Chemical History of a Candle (Lecture I)", artist:"Michael Faraday · LibriVox", genre:"lecture / spoken word", filename:"faraday_candle_lecture1", defaultPresetID:"podcast"),
+        // Ambient — the eerie radio "song" of Jupiter, recorded by NASA's Juno probe.
+        SampleTrack(id:"ganymede", title:"Ganymede Flyby", artist:"NASA · Juno", genre:"space ambient", filename:"nasa_ganymede_flyby", defaultPresetID:"fatigue"),
     ]
 }

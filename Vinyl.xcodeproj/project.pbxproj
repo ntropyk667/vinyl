@@ -7,12 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2C872B762F78A1F1004BD3AB /* lex_fridman_jim_keller_2019.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2C872B752F78A1F1004BD3AB /* lex_fridman_jim_keller_2019.mp3 */; };
-		2C872B772F78A1F1004BD3AB /* Carl Sagans - Pale Blue Dot.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2C872B742F78A1F1004BD3AB /* Carl Sagans - Pale Blue Dot.mp3 */; };
-		931C4BD22F7096CC0035EE0A /* easiness.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 931C4BCF2F7096CC0035EE0A /* easiness.mp3 */; };
-		931C4BD32F7096CC0035EE0A /* not_srv.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 931C4BD02F7096CC0035EE0A /* not_srv.mp4 */; };
 		931C4BD42F7096CC0035EE0A /* one_night_in_france.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 931C4BD12F7096CC0035EE0A /* one_night_in_france.mp3 */; };
-		931C4BD52F7096CC0035EE0A /* a_neon_flesh.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 931C4BCE2F7096CC0035EE0A /* a_neon_flesh.mp3 */; };
+		MCB1 /* morning_coffee.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = MCF1 /* morning_coffee.mp3 */; };
+		VTB1 /* vintage.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = VTF1 /* vintage.mp3 */; };
+		AUB1 /* autumn.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = AUF1 /* autumn.mp3 */; };
+		J1B /* busted_jazz_1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = J1F /* busted_jazz_1.mp3 */; };
+		J3B /* busted_jazz_3.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = J3F /* busted_jazz_3.mp3 */; };
+		FDB1 /* faraday_candle_lecture1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FDF1 /* faraday_candle_lecture1.mp3 */; };
+		NGB1 /* nasa_ganymede_flyby.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = NGF1 /* nasa_ganymede_flyby.mp3 */; };
 		93317E602F72204B004A6108 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 93317E5F2F72204B004A6108 /* Assets.xcassets */; };
 		A001 /* VinylApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001 /* VinylApp.swift */; };
 		A002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002 /* ContentView.swift */; };
@@ -24,7 +26,6 @@
 		A008 /* TubeControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B008 /* TubeControlsView.swift */; };
 		A009 /* DocumentPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B009 /* DocumentPickerView.swift */; };
 		A010 /* ConverterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010 /* ConverterView.swift */; };
-		BJB01 /* big_bad_john.flac in Resources */ = {isa = PBXBuildFile; fileRef = BJ01 /* big_bad_john.flac */; };
 		NDB01 /* needle_drop_1.wav in Resources */ = {isa = PBXBuildFile; fileRef = ND01 /* needle_drop_1.wav */; };
 		NDB04 /* needle_drop_4.wav in Resources */ = {isa = PBXBuildFile; fileRef = ND04 /* needle_drop_4.wav */; };
 		PA01 /* PodcastModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = PF01 /* PodcastModels.swift */; };
@@ -36,12 +37,14 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		2C872B742F78A1F1004BD3AB /* Carl Sagans - Pale Blue Dot.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "Carl Sagans - Pale Blue Dot.mp3"; sourceTree = "<group>"; };
-		2C872B752F78A1F1004BD3AB /* lex_fridman_jim_keller_2019.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = lex_fridman_jim_keller_2019.mp3; sourceTree = "<group>"; };
-		931C4BCE2F7096CC0035EE0A /* a_neon_flesh.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = a_neon_flesh.mp3; sourceTree = "<group>"; };
-		931C4BCF2F7096CC0035EE0A /* easiness.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = easiness.mp3; sourceTree = "<group>"; };
-		931C4BD02F7096CC0035EE0A /* not_srv.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = not_srv.mp4; sourceTree = "<group>"; };
 		931C4BD12F7096CC0035EE0A /* one_night_in_france.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = one_night_in_france.mp3; sourceTree = "<group>"; };
+		MCF1 /* morning_coffee.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = morning_coffee.mp3; sourceTree = "<group>"; };
+		VTF1 /* vintage.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = vintage.mp3; sourceTree = "<group>"; };
+		AUF1 /* autumn.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = autumn.mp3; sourceTree = "<group>"; };
+		J1F /* busted_jazz_1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = busted_jazz_1.mp3; sourceTree = "<group>"; };
+		J3F /* busted_jazz_3.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = busted_jazz_3.mp3; sourceTree = "<group>"; };
+		FDF1 /* faraday_candle_lecture1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = faraday_candle_lecture1.mp3; sourceTree = "<group>"; };
+		NGF1 /* nasa_ganymede_flyby.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = nasa_ganymede_flyby.mp3; sourceTree = "<group>"; };
 		93317E5F2F72204B004A6108 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B001 /* VinylApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VinylApp.swift; sourceTree = "<group>"; };
 		B002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -54,7 +57,6 @@
 		B009 /* DocumentPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentPickerView.swift; sourceTree = "<group>"; };
 		B010 /* ConverterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConverterView.swift; sourceTree = "<group>"; };
 		B011 /* Vinyl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vinyl.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		BJ01 /* big_bad_john.flac */ = {isa = PBXFileReference; lastKnownFileType = file; path = big_bad_john.flac; sourceTree = "<group>"; };
 		ND01 /* needle_drop_1.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = needle_drop_1.wav; sourceTree = "<group>"; };
 		ND04 /* needle_drop_4.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = needle_drop_4.wav; sourceTree = "<group>"; };
 		PF01 /* PodcastModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PodcastModels.swift; sourceTree = "<group>"; };
@@ -79,8 +81,6 @@
 		D001 = {
 			isa = PBXGroup;
 			children = (
-				2C872B742F78A1F1004BD3AB /* Carl Sagans - Pale Blue Dot.mp3 */,
-				2C872B752F78A1F1004BD3AB /* lex_fridman_jim_keller_2019.mp3 */,
 				D002 /* Vinyl */,
 				D005 /* Products */,
 			);
@@ -96,11 +96,14 @@
 				D006 /* Models */,
 				NDG1 /* Resources/NeedleDrops */,
 				PGR1 /* Podcast */,
-				931C4BCE2F7096CC0035EE0A /* a_neon_flesh.mp3 */,
-				931C4BCF2F7096CC0035EE0A /* easiness.mp3 */,
-				931C4BD02F7096CC0035EE0A /* not_srv.mp4 */,
 				931C4BD12F7096CC0035EE0A /* one_night_in_france.mp3 */,
-				BJ01 /* big_bad_john.flac */,
+				MCF1 /* morning_coffee.mp3 */,
+				VTF1 /* vintage.mp3 */,
+				AUF1 /* autumn.mp3 */,
+				J1F /* busted_jazz_1.mp3 */,
+				J3F /* busted_jazz_3.mp3 */,
+				FDF1 /* faraday_candle_lecture1.mp3 */,
+				NGF1 /* nasa_ganymede_flyby.mp3 */,
 			);
 			path = Vinyl;
 			sourceTree = "<group>";
@@ -223,13 +226,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2C872B762F78A1F1004BD3AB /* lex_fridman_jim_keller_2019.mp3 in Resources */,
-				2C872B772F78A1F1004BD3AB /* Carl Sagans - Pale Blue Dot.mp3 in Resources */,
-				931C4BD22F7096CC0035EE0A /* easiness.mp3 in Resources */,
-				931C4BD32F7096CC0035EE0A /* not_srv.mp4 in Resources */,
 				931C4BD42F7096CC0035EE0A /* one_night_in_france.mp3 in Resources */,
-				931C4BD52F7096CC0035EE0A /* a_neon_flesh.mp3 in Resources */,
-				BJB01 /* big_bad_john.flac in Resources */,
+				MCB1 /* morning_coffee.mp3 in Resources */,
+				VTB1 /* vintage.mp3 in Resources */,
+				AUB1 /* autumn.mp3 in Resources */,
+				J1B /* busted_jazz_1.mp3 in Resources */,
+				J3B /* busted_jazz_3.mp3 in Resources */,
+				FDB1 /* faraday_candle_lecture1.mp3 in Resources */,
+				NGB1 /* nasa_ganymede_flyby.mp3 in Resources */,
 				NDB01 /* needle_drop_1.wav in Resources */,
 				NDB04 /* needle_drop_4.wav in Resources */,
 				93317E602F72204B004A6108 /* Assets.xcassets in Resources */,
