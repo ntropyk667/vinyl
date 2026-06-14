@@ -937,22 +937,19 @@ class VinylEngine: ObservableObject {
         let pa = preampOn && !isBypassed
         let pw = powerampOn && !isBypassed
         let m = params.masterIntensity / 100
-        // Each EQ node is now driven by its OWN independent parameter, not a
-        // shared one. This is the audio-engine half of the slider-decoupling
-        // change (the other half is in VinylParameters + ControlsViews). The
-        // DSP math itself (scaling factors, sign conventions) is unchanged so
-        // the sound at default preset values is identical to before; only the
-        // ability to move each slider independently is new.
-        tubeWarmthEQ.bands[0].gain = pa ? params.saturation / 100 * m * 1.2 : 0      // "tube warmth"
-        tubeAirEQ.bands[0].gain    = pa ? -(params.airRolloff / 100 * m * 0.35) : 0   // "air rolloff"
-        microEQ.bands[0].gain      = pa ? params.microphonics / 100 * m * 0.6 : 0     // "microphonics"
-        xformerEQ.bands[0].gain    = pw ? params.outputTransformer / 100 * m * 0.6 : 0 // "output transformer"
-        speakerEQ.bands[0].gain    = pw ? -(params.speakerCoupling / 100 * m * 0.5) : 0 // "speaker coupling"
-        // "class A drive" — cubic soft-clip via AVAudioUnitDistortion.
-        // wetDryMix is in percent (0-100). Cap at 15% even at slider=100 and
-        // masterIntensity=100 so the effect stays in "subtle warmth" territory
-        // rather than ever sounding like a guitar-amp distortion pedal.
-        satNode.wetDryMix          = pw ? params.classADrive / 100 * m * 15 : 0
+        // Each EQ node is driven by its OWN independent parameter. The gain
+        // multipliers below were ~10x too small (fractions of a dB even at a full
+        // slider), so the amplifier sliders were effectively inaudible — they've
+        // been raised by ear to produce audible dB swings. Keep in sync with the
+        // offline converter's amp section in performOfflineRender().
+        tubeWarmthEQ.bands[0].gain = pa ? params.saturation / 100 * m * 14 : 0       // "tube warmth"
+        tubeAirEQ.bands[0].gain    = pa ? -(params.airRolloff / 100 * m * 5) : 0      // "air rolloff"
+        microEQ.bands[0].gain      = pa ? params.microphonics / 100 * m * 8 : 0       // "microphonics"
+        xformerEQ.bands[0].gain    = pw ? params.outputTransformer / 100 * m * 8 : 0  // "output transformer"
+        speakerEQ.bands[0].gain    = pw ? -(params.speakerCoupling / 100 * m * 7) : 0 // "speaker coupling"
+        // "class A drive" — cubic soft-clip via AVAudioUnitDistortion. wetDryMix
+        // is percent (0-100); cap raised from 15% to 45% so the drive is audible.
+        satNode.wetDryMix          = pw ? params.classADrive / 100 * m * 45 : 0
     }
 
     func updateNoiseParams() {
