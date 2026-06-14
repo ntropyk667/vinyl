@@ -981,9 +981,9 @@ class VinylEngine: ObservableObject {
         cracklePlayer.volume = active ? Float(effectiveCrackle * Double(m)) * 0.63 * crackleBoost : 0
         // Pressed noise — constant mid-frequency manufacturing haze, driven by its
         // own slider (not affected by wear: it's baked in at pressing time).
-        // makeHaze is band-limited / lower-RMS than pink, so it needs a higher
-        // gain factor than hiss to reach a comparable audible level.
-        pressedPlayer.volume = active ? Float(Double(params.pressedNoise) / 100 * Double(m)) * 1.2 : 0
+        // Gain tuned down by ear to 0.12 (was 1.2 — 90% too strong); it's meant
+        // to be a subtle bed under the music, not a prominent layer.
+        pressedPlayer.volume = active ? Float(Double(params.pressedNoise) / 100 * Double(m)) * 0.12 : 0
     }
 
     func updateUserEQ() {
@@ -1770,7 +1770,7 @@ class VinylEngine: ObservableObject {
         offHiss.volume    = active ? Float(Double(params.hiss) / 100 * Double(m)) * 0.35 : 0   // match live hiss gain (updateNoiseParams)
         offRumble.volume  = active ? Float(offEffRumble  * Double(m)) * 0.72 : 0   // match live rumble gain
         offCrackle.volume = active ? Float(offEffCrackle * Double(m)) * 0.63 : 0
-        offPressed.volume = active ? Float(Double(params.pressedNoise) / 100 * Double(m)) * 1.2 : 0   // match live pressed-noise gain
+        offPressed.volume = active ? Float(Double(params.pressedNoise) / 100 * Double(m)) * 0.12 : 0   // match live pressed-noise gain
 
         // Enable offline rendering
         try offEngine.enableManualRenderingMode(.offline, format: renderFmt, maximumFrameCount: 4096)
