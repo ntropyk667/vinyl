@@ -177,9 +177,6 @@ struct ContentView: View {
                 GraphicEQToggle(engine: engine)
                     .disabled(engine.isBypassed)
                     .opacity(engine.isBypassed ? 0.35 : 1.0)
-                CompressorToggle(engine: engine)
-                    .disabled(engine.isBypassed)
-                    .opacity(engine.isBypassed ? 0.35 : 1.0)
             }
             NeedleDropButton(engine: engine)
                 .disabled(engine.isBypassed)
@@ -199,9 +196,6 @@ struct ContentView: View {
                     .opacity(engine.isBypassed ? 0.35 : 1.0)
                 HStack(spacing: 4) {
                     GraphicEQToggle(engine: engine)
-                        .disabled(engine.isBypassed)
-                        .opacity(engine.isBypassed ? 0.35 : 1.0)
-                    CompressorToggle(engine: engine)
                         .disabled(engine.isBypassed)
                         .opacity(engine.isBypassed ? 0.35 : 1.0)
                 }

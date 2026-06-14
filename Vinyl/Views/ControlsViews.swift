@@ -193,16 +193,13 @@ struct EffectSectionsView: View {
                 EffectSlider(label: "riaa variance", sub: "eq curve imperfection", info: "Imperfection in the RIAA equalization curve. Gives each pressing a slightly different tonal character.", value: Binding(get: { engine.params.riaaVariance }, set: { engine.params.riaaVariance=$0; engine.updateVinylParams() }))
                 EffectSlider(label: "stereo width", sub: "0=mono / 100=full stereo", info: "Narrows the stereo field toward mono, simulating limited channel separation on vinyl.", value: Binding(get: { engine.params.stereoWidth }, set: { engine.params.stereoWidth=$0; engine.updateVinylParams() }))
             }
-            EffectSection(title: "cartridge & room", badge: "3 controls", id: "cart", open: $open) {
-                EffectSlider(label: "inner groove dist", sub: "distortion near label", info: "As the stylus tracks toward the label, the groove tightens and high frequencies distort and smear.", value: Binding(get: { engine.params.innerGrooveDistortion }, set: { engine.params.innerGrooveDistortion=$0; engine.updateVinylParams() }))
-                EffectSlider(label: "azimuth error", sub: "channel phase mismatch", info: "Cartridge misalignment delays one channel slightly, causing phase smear and a hollow stereo image.", value: Binding(get: { engine.params.azimuthError }, set: { engine.params.azimuthError=$0; engine.updateVinylParams() }))
-                EffectSlider(label: "room resonance", sub: "turntable coupling", info: "Narrow resonant peak around 180Hz from the turntable plinth vibrating on the shelf.", value: Binding(get: { engine.params.roomResonance }, set: { engine.params.roomResonance=$0; engine.updateVinylParams() }))
-            }
+            // "cartridge & room" section (inner groove dist, azimuth error, room
+            // resonance) and the "compressor" section were removed from the UI:
+            // the cartridge/room effects were inaudible, and the compressor was
+            // cut to simplify the controls for release. The underlying parameters
+            // and DSP remain in VinylEngine but are no longer user-adjustable.
             EffectSection(title: "graphic eq", badge: "12 band", id: "eq", open: $open) {
                 GraphicEQView(engine: engine)
-            }
-            EffectSection(title: "compressor", badge: "dynamics", id: "comp", open: $open) {
-                CompressorView(engine: engine)
             }
             EffectSection(title: "amplifier", badge: "tube simulation", id: "amp", open: $open) {
                 AmpSubLabel("preamp tube")

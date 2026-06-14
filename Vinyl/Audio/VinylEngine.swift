@@ -922,7 +922,11 @@ class VinylEngine: ObservableObject {
         // Skip hiss volume update while needle drop delay is running — the fade-in
         // timer in startPlayback() owns hissPlayer.volume until the fade completes.
         if !hissDelayActive {
-            hissPlayer.volume = active ? Float(Double(params.hiss) / 100 * Double(m)) * 0.18 : 0
+            // Hiss gain: raised from 0.18 to 0.7. At 0.18 hiss was effectively
+            // inaudible sitting next to crackle (0.63) and rumble (0.36); this
+            // brings it into the same audible range. Keep in sync with offHiss
+            // in the offline converter (performOfflineRender).
+            hissPlayer.volume = active ? Float(Double(params.hiss) / 100 * Double(m)) * 0.7 : 0
         }
         rumblePlayer.volume  = active ? Float(effectiveRumble  * Double(m)) * 0.36 : 0
         // Multiplied by crackleBoost so the "just dropped" ramp can temporarily
@@ -1704,7 +1708,7 @@ class VinylEngine: ObservableObject {
         let active = !isBypassed
         let offEffRumble  = Double(min(params.rumble  + params.wear, Float(100))) / 100
         let offEffCrackle = Double(min(params.crackle + params.wear, Float(100))) / 100
-        offHiss.volume    = active ? Float(Double(params.hiss) / 100 * Double(m)) * 0.18 : 0
+        offHiss.volume    = active ? Float(Double(params.hiss) / 100 * Double(m)) * 0.7 : 0   // match live hiss gain (updateNoiseParams)
         offRumble.volume  = active ? Float(offEffRumble  * Double(m)) * 0.36 : 0
         offCrackle.volume = active ? Float(offEffCrackle * Double(m)) * 0.63 : 0
 
