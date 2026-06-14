@@ -102,16 +102,21 @@ struct SampleTrack: Identifiable, Equatable {
 extension SampleTrack {
     static let library: [SampleTrack] = [
         // Every track below is cleared for App Store release:
-        //   • Music  — CC0 (public domain) by HoliznaCC0, "use however you want, no credit needed"
+        //   • Music  — CC0 (public domain) by HoliznaCC0, Monplaisir, and Loyalty
+        //             Freak Music ("free music for free people"; no credit required)
         //   • Faraday — LibriVox recording, Public Domain Mark 1.0 (the lecture text is long out of copyright)
         //   • NASA   — Juno "Waves" instrument data sonified by NASA; NASA media is not copyrighted
         // No NonCommercial-licensed or copyrighted material is bundled.
+        // --- HoliznaCC0 (CC0 public domain) ---
         SampleTrack(id:"france", title:"One Night In France", artist:"HoliznaCC0", genre:"lo-fi / nostalgic", filename:"one_night_in_france", defaultPresetID:"electronic"),
         SampleTrack(id:"coffee", title:"Morning Coffee", artist:"HoliznaCC0", genre:"lo-fi / warm", filename:"morning_coffee", defaultPresetID:"fatigue"),
-        SampleTrack(id:"vintage", title:"Vintage", artist:"HoliznaCC0", genre:"lo-fi / crackly", filename:"vintage", defaultPresetID:"fatigue"),
-        SampleTrack(id:"autumn", title:"Autumn", artist:"HoliznaCC0", genre:"lo-fi / mellow", filename:"autumn", defaultPresetID:"fatigue"),
         SampleTrack(id:"jazz1", title:"Busted Guitar Jazz I", artist:"HoliznaCC0", genre:"jazz / guitar", filename:"busted_jazz_1", defaultPresetID:"jazz"),
-        SampleTrack(id:"jazz3", title:"Busted Guitar Jazz III", artist:"HoliznaCC0", genre:"jazz / guitar", filename:"busted_jazz_3", defaultPresetID:"jazz"),
+        // --- Monplaisir (CC0 public domain) ---
+        SampleTrack(id:"mp_love", title:"Morning Love Frequencies", artist:"Monplaisir", genre:"vintage / dreamy", filename:"monplaisir_morning_love", defaultPresetID:"fatigue"),
+        SampleTrack(id:"mp_home", title:"There Is No Place Like Home", artist:"Monplaisir", genre:"warm / cinematic", filename:"monplaisir_no_place_like_home", defaultPresetID:"fatigue"),
+        // --- Loyalty Freak Music (CC0 public domain) ---
+        SampleTrack(id:"lfm_travel", title:"Traveling In Your Mind", artist:"Loyalty Freak Music", genre:"chill / electronic", filename:"lfm_traveling_in_your_mind", defaultPresetID:"electronic"),
+        SampleTrack(id:"lfm_coexist", title:"Coexistenz", artist:"Loyalty Freak Music", genre:"chill / electronic", filename:"lfm_coexistenz", defaultPresetID:"electronic"),
         // Spoken word — a classic science lecture, read aloud (public domain).
         SampleTrack(id:"faraday", title:"The Chemical History of a Candle (Lecture I)", artist:"Michael Faraday · LibriVox", genre:"lecture / spoken word", filename:"faraday_candle_lecture1", defaultPresetID:"podcast"),
         // Ambient — the eerie radio "song" of Jupiter, recorded by NASA's Juno probe.

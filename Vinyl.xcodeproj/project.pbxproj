@@ -9,10 +9,11 @@
 /* Begin PBXBuildFile section */
 		931C4BD42F7096CC0035EE0A /* one_night_in_france.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 931C4BD12F7096CC0035EE0A /* one_night_in_france.mp3 */; };
 		MCB1 /* morning_coffee.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = MCF1 /* morning_coffee.mp3 */; };
-		VTB1 /* vintage.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = VTF1 /* vintage.mp3 */; };
-		AUB1 /* autumn.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = AUF1 /* autumn.mp3 */; };
 		J1B /* busted_jazz_1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = J1F /* busted_jazz_1.mp3 */; };
-		J3B /* busted_jazz_3.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = J3F /* busted_jazz_3.mp3 */; };
+		MPM1 /* monplaisir_morning_love.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = MPM1F /* monplaisir_morning_love.mp3 */; };
+		MPH1 /* monplaisir_no_place_like_home.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = MPH1F /* monplaisir_no_place_like_home.mp3 */; };
+		LFT1 /* lfm_traveling_in_your_mind.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = LFT1F /* lfm_traveling_in_your_mind.mp3 */; };
+		LFC1 /* lfm_coexistenz.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = LFC1F /* lfm_coexistenz.mp3 */; };
 		FDB1 /* faraday_candle_lecture1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FDF1 /* faraday_candle_lecture1.mp3 */; };
 		NGB1 /* nasa_ganymede_flyby.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = NGF1 /* nasa_ganymede_flyby.mp3 */; };
 		93317E602F72204B004A6108 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 93317E5F2F72204B004A6108 /* Assets.xcassets */; };
@@ -39,10 +40,11 @@
 /* Begin PBXFileReference section */
 		931C4BD12F7096CC0035EE0A /* one_night_in_france.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = one_night_in_france.mp3; sourceTree = "<group>"; };
 		MCF1 /* morning_coffee.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = morning_coffee.mp3; sourceTree = "<group>"; };
-		VTF1 /* vintage.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = vintage.mp3; sourceTree = "<group>"; };
-		AUF1 /* autumn.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = autumn.mp3; sourceTree = "<group>"; };
 		J1F /* busted_jazz_1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = busted_jazz_1.mp3; sourceTree = "<group>"; };
-		J3F /* busted_jazz_3.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = busted_jazz_3.mp3; sourceTree = "<group>"; };
+		MPM1F /* monplaisir_morning_love.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = monplaisir_morning_love.mp3; sourceTree = "<group>"; };
+		MPH1F /* monplaisir_no_place_like_home.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = monplaisir_no_place_like_home.mp3; sourceTree = "<group>"; };
+		LFT1F /* lfm_traveling_in_your_mind.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = lfm_traveling_in_your_mind.mp3; sourceTree = "<group>"; };
+		LFC1F /* lfm_coexistenz.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = lfm_coexistenz.mp3; sourceTree = "<group>"; };
 		FDF1 /* faraday_candle_lecture1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = faraday_candle_lecture1.mp3; sourceTree = "<group>"; };
 		NGF1 /* nasa_ganymede_flyby.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = nasa_ganymede_flyby.mp3; sourceTree = "<group>"; };
 		93317E5F2F72204B004A6108 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -98,10 +100,11 @@
 				PGR1 /* Podcast */,
 				931C4BD12F7096CC0035EE0A /* one_night_in_france.mp3 */,
 				MCF1 /* morning_coffee.mp3 */,
-				VTF1 /* vintage.mp3 */,
-				AUF1 /* autumn.mp3 */,
 				J1F /* busted_jazz_1.mp3 */,
-				J3F /* busted_jazz_3.mp3 */,
+				MPM1F /* monplaisir_morning_love.mp3 */,
+				MPH1F /* monplaisir_no_place_like_home.mp3 */,
+				LFT1F /* lfm_traveling_in_your_mind.mp3 */,
+				LFC1F /* lfm_coexistenz.mp3 */,
 				FDF1 /* faraday_candle_lecture1.mp3 */,
 				NGF1 /* nasa_ganymede_flyby.mp3 */,
 			);
@@ -228,10 +231,11 @@
 			files = (
 				931C4BD42F7096CC0035EE0A /* one_night_in_france.mp3 in Resources */,
 				MCB1 /* morning_coffee.mp3 in Resources */,
-				VTB1 /* vintage.mp3 in Resources */,
-				AUB1 /* autumn.mp3 in Resources */,
 				J1B /* busted_jazz_1.mp3 in Resources */,
-				J3B /* busted_jazz_3.mp3 in Resources */,
+				MPM1 /* monplaisir_morning_love.mp3 in Resources */,
+				MPH1 /* monplaisir_no_place_like_home.mp3 in Resources */,
+				LFT1 /* lfm_traveling_in_your_mind.mp3 in Resources */,
+				LFC1 /* lfm_coexistenz.mp3 in Resources */,
 				FDB1 /* faraday_candle_lecture1.mp3 in Resources */,
 				NGB1 /* nasa_ganymede_flyby.mp3 in Resources */,
 				NDB01 /* needle_drop_1.wav in Resources */,
