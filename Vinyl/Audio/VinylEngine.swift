@@ -121,6 +121,32 @@ class VinylEngine: ObservableObject {
             }
     }
 
+    // IDs of bundled sample tracks the user hid from the library via the in-row
+    // delete button. Persisted so the choice survives app restarts.
+    private static let hiddenTracksKey = "vinyl_hidden_track_ids"
+    @Published var hiddenTrackIDs: Set<String> =
+        Set(UserDefaults.standard.stringArray(forKey: VinylEngine.hiddenTracksKey) ?? [])
+
+    /// Hide a bundled sample track from the library. Bundled files live in the
+    /// read-only app bundle, so we can't truly delete them — we persist the id in
+    /// a hidden set and filter the displayed library by it.
+    func hideTrack(_ id: String) {
+        hiddenTrackIDs.insert(id)
+        UserDefaults.standard.set(Array(hiddenTrackIDs), forKey: VinylEngine.hiddenTracksKey)
+    }
+
+    /// Permanently delete a converted .wav file from the Documents directory.
+    func deleteConvertedFile(_ url: URL) {
+        // If the file being deleted is the one currently loaded, stop and clear it
+        // so we don't keep playing a file that no longer exists.
+        if convertedFileURL == url {
+            stopPlayback()
+            convertedFileURL = nil
+        }
+        try? FileManager.default.removeItem(at: url)
+        scanConvertedFiles()
+    }
+
     private let engine = AVAudioEngine()
     private var playerNode = AVAudioPlayerNode()
     private var audioFile: AVAudioFile?
@@ -948,8 +974,8 @@ class VinylEngine: ObservableObject {
         xformerEQ.bands[0].gain    = pw ? params.outputTransformer / 100 * m * 8 : 0  // "output transformer"
         speakerEQ.bands[0].gain    = pw ? -(params.speakerCoupling / 100 * m * 7) : 0 // "speaker coupling"
         // "class A drive" — cubic soft-clip via AVAudioUnitDistortion. wetDryMix
-        // is percent (0-100); cap raised from 15% to 45% so the drive is audible.
-        satNode.wetDryMix          = pw ? params.classADrive / 100 * m * 45 : 0
+        // is percent (0-100); tuned by ear to a 22.5% cap (45% was 2x too strong).
+        satNode.wetDryMix          = pw ? params.classADrive / 100 * m * 22.5 : 0
     }
 
     func updateNoiseParams() {

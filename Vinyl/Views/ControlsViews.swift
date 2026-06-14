@@ -3,22 +3,33 @@ import SwiftUI
 struct SampleLibraryView: View, Equatable {
     var engine: VinylEngine
     var onSelect: (() -> Void)? = nil
+    // Track which row's delete button was tapped so we can show a confirmation
+    // before doing anything. Sample tracks get hidden; converted files get
+    // permanently deleted — hence two separate pending-delete states.
+    @State private var pendingDeleteTrack: SampleTrack?
+    @State private var pendingDeleteURL: URL?
+
     static func == (lhs: SampleLibraryView, rhs: SampleLibraryView) -> Bool {
         lhs.engine.currentTrack?.id == rhs.engine.currentTrack?.id &&
+        lhs.engine.hiddenTrackIDs == rhs.engine.hiddenTrackIDs &&
         lhs.engine.convertedFiles.map(\.lastPathComponent) == rhs.engine.convertedFiles.map(\.lastPathComponent)
     }
     var body: some View {
         VStack(spacing: 4) {
-            ForEach(SampleTrack.library) { track in
+            // Skip any sample tracks the user has hidden via the delete button.
+            ForEach(SampleTrack.library.filter { !engine.hiddenTrackIDs.contains($0.id) }) { track in
                 let preset = VinylPreset.all.first(where: { $0.id == track.defaultPresetID })?.name ?? ""
                 let isSelected = engine.currentTrack?.id == track.id
-                Button(action: {
-                    engine.loadTrack(track)
-                    engine.startPlayback()
-                    onSelect?()
-                }) {
-                    libraryRow(label: "\(track.title) — \(track.artist) [\(preset)]", isSelected: isSelected)
-                }
+                libraryRow(
+                    label: "\(track.title) — \(track.artist) [\(preset)]",
+                    isSelected: isSelected,
+                    onTap: {
+                        engine.loadTrack(track)
+                        engine.startPlayback()
+                        onSelect?()
+                    },
+                    onDelete: { pendingDeleteTrack = track }
+                )
             }
 
             if !engine.convertedFiles.isEmpty {
@@ -32,37 +43,84 @@ struct SampleLibraryView: View, Equatable {
                 ForEach(engine.convertedFiles, id: \.lastPathComponent) { url in
                     let name = url.deletingPathExtension().lastPathComponent
                     let isSelected = engine.convertedFileURL == url
-                    Button(action: {
-                        engine.loadFile(url: url)
-                        engine.startPlayback()
-                        onSelect?()
-                    }) {
-                        libraryRow(label: name, isSelected: isSelected)
-                    }
+                    libraryRow(
+                        label: name,
+                        isSelected: isSelected,
+                        onTap: {
+                            engine.loadFile(url: url)
+                            engine.startPlayback()
+                            onSelect?()
+                        },
+                        onDelete: { pendingDeleteURL = url }
+                    )
                 }
             }
         }
+        // Confirm hiding a bundled sample track.
+        .alert("Remove from library?",
+               isPresented: Binding(get: { pendingDeleteTrack != nil },
+                                    set: { if !$0 { pendingDeleteTrack = nil } })) {
+            Button("Cancel", role: .cancel) { pendingDeleteTrack = nil }
+            Button("Delete", role: .destructive) {
+                if let t = pendingDeleteTrack { engine.hideTrack(t.id) }
+                pendingDeleteTrack = nil
+            }
+        } message: {
+            Text(pendingDeleteTrack.map { "“\($0.title)” will be removed from your library." } ?? "")
+        }
+        // Confirm permanently deleting a converted file.
+        .alert("Delete converted file?",
+               isPresented: Binding(get: { pendingDeleteURL != nil },
+                                    set: { if !$0 { pendingDeleteURL = nil } })) {
+            Button("Cancel", role: .cancel) { pendingDeleteURL = nil }
+            Button("Delete", role: .destructive) {
+                if let u = pendingDeleteURL { engine.deleteConvertedFile(u) }
+                pendingDeleteURL = nil
+            }
+        } message: {
+            Text(pendingDeleteURL.map { "“\($0.deletingPathExtension().lastPathComponent)” will be permanently deleted." } ?? "")
+        }
     }
 
-    private func libraryRow(label: String, isSelected: Bool) -> some View {
-        HStack {
-            Text(label)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundColor(isSelected ? Color(hex: "c8b89a") : Color(hex: "e8e6e0"))
-                .lineLimit(1)
-            Spacer()
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(Color(hex: "c8b89a"))
+    // A library row = a tappable label (plays the track) plus a trash button
+    // (asks for confirmation before removing).
+    private func libraryRow(label: String, isSelected: Bool,
+                            onTap: @escaping () -> Void,
+                            onDelete: @escaping () -> Void) -> some View {
+        HStack(spacing: 6) {
+            Button(action: onTap) {
+                HStack {
+                    Text(label)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(isSelected ? Color(hex: "c8b89a") : Color(hex: "e8e6e0"))
+                        .lineLimit(1)
+                    Spacer()
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(Color(hex: "c8b89a"))
+                    }
+                }
+                .padding(.horizontal, 10).padding(.vertical, 9)
+                .background(isSelected ? Color(hex: "1e1a14") : Color(hex: "161616"))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(
+                    isSelected ? Color(hex: "c8b89a").opacity(0.4) : Color.white.opacity(0.08),
+                    lineWidth: 0.5))
+                .cornerRadius(6)
             }
+            .buttonStyle(.plain)
+
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.system(size: 11))
+                    .foregroundColor(Color(hex: "9a5a5a"))
+                    .padding(.horizontal, 9).padding(.vertical, 9)
+                    .background(Color(hex: "161616"))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.08), lineWidth: 0.5))
+                    .cornerRadius(6)
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 10).padding(.vertical, 9)
-        .background(isSelected ? Color(hex: "1e1a14") : Color(hex: "161616"))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(
-            isSelected ? Color(hex: "c8b89a").opacity(0.4) : Color.white.opacity(0.08),
-            lineWidth: 0.5))
-        .cornerRadius(6)
     }
 }
 

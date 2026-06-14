@@ -52,7 +52,7 @@ struct ContentView: View {
             // Seed the first library track on cold start. (Was the "sagan"
             // podcast clip, which was removed for being copyrighted.) Using
             // `.first` keeps this resilient if the library lineup changes.
-            if let defaultTrack = SampleTrack.library.first {
+            if let defaultTrack = SampleTrack.library.first(where: { !engine.hiddenTrackIDs.contains($0.id) }) {
                 engine.loadTrack(defaultTrack)
             }
         }
@@ -63,9 +63,11 @@ struct ContentView: View {
     private func sectionTab(_ label: String, section: AppSection) -> some View {
         let isActive = expandedSection == section
         return Button(action: {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                expandedSection = isActive ? nil : section
-            }
+            // Instant toggle (no withAnimation): animating the expand made the
+            // heavy controls below re-lay-out every frame for 0.2s, which is what
+            // made opening the podcast/converter panels feel laggy. Snapping it
+            // open is one layout pass and feels smooth.
+            expandedSection = isActive ? nil : section
         }) {
             HStack(spacing: 4) {
                 Text(label.uppercased())
